@@ -28,7 +28,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
         }
         
         // Make the fetch request
-        const response = await fetch(`https://hbuk-backend.onrender.com${endpoint}`, options);
+        const response = await fetch(`https://hbuk-backend-hvow.onrender.com${endpoint}`, options);
         
         // Check for authentication errors
         if (response.status === 401 || response.status === 403) {
