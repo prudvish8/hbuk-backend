@@ -9,6 +9,7 @@ const { authenticateToken } = require('./auth');
 const { validateRegister, validateLogin, validateEntry } = require('./validation');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
