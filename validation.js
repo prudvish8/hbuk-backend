@@ -12,12 +12,13 @@ const loginSchema = Joi.object({
 });
 
 const entrySchema = Joi.object({
-    text: Joi.string().max(1000).required(),
+    text: Joi.string().max(10000).required(), // Increased max length
+    timestamp: Joi.string().isoDate().required(),
     location: Joi.object({
         latitude: Joi.any().required(),
         longitude: Joi.any().required()
-    }).optional(),
-    locationName: Joi.string().max(200).optional()
+    }).optional(), // Make the entire location object optional
+    locationName: Joi.string().max(200).allow('').optional() // Allow empty string and make optional
 });
 
 // Validation middleware functions
