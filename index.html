@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>hbuk</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app-container">
+        <div class="header">
+            <h1>hbuk</h1>
+            <a href="login.html" class="login-link">Login</a>
+        </div>
+        
+        <textarea id="editor" placeholder="Begin..."></textarea>
+        <button id="commit-button" title="Shortcut: ⌘ + Enter">Commit</button>
+        
+        <!-- NEW: This is where our history will be displayed -->
+        <div id="history-container"></div>
+    </div>
+
+    <script src="api-utils.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
