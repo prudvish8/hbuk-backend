@@ -101,37 +101,51 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = editor.value.trim();
         if (text === '') return;
 
-        // --- THIS IS THE CRITICAL FIX ---
-        // 1. Get location FIRST and wait for it.
-        const location = await getCurrentLocation();
-        // 2. Get timestamp.
-        const timestamp = new Date().toISOString();
-        // 3. Get location name.
-        let locationName = "Unknown Location";
-        if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
-            try {
-                const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
-                const data = await geoResponse.json();
-                const place = data.locality || data.city;
-                locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
-            } catch (error) {
-                console.error("Reverse geocoding failed:", error);
-                locationName = "Location lookup failed";
+        // Disable button and show loading state
+        const originalText = commitButton.textContent;
+        commitButton.disabled = true;
+        commitButton.textContent = 'Committing...';
+
+        try {
+            // --- THIS IS THE CRITICAL FIX ---
+            // 1. Get location FIRST and wait for it.
+            const location = await getCurrentLocation();
+            // 2. Get timestamp.
+            const timestamp = new Date().toISOString();
+            // 3. Get location name.
+            let locationName = "Unknown Location";
+            if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
+                try {
+                    const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
+                    const data = await geoResponse.json();
+                    const place = data.locality || data.city;
+                    locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
+                } catch (error) {
+                    console.error("Reverse geocoding failed:", error);
+                    locationName = "Location lookup failed";
+                }
+            } else {
+                locationName = "Location not available";
             }
-        } else {
-            locationName = "Location not available";
+
+            // 4. Build the COMPLETE data package.
+            const newEntry = {
+                text,
+                timestamp,
+                location,
+                locationName,
+            };
+
+            // 5. NOW send the complete package to the createEntry function.
+            await createEntry(newEntry);
+        } catch (error) {
+            console.error('Error during commit:', error);
+            showNotification('Failed to commit entry. Please try again.', 'error');
+        } finally {
+            // Re-enable button and restore original text
+            commitButton.disabled = false;
+            commitButton.textContent = originalText;
         }
-
-        // 4. Build the COMPLETE data package.
-        const newEntry = {
-            text,
-            timestamp,
-            location,
-            locationName,
-        };
-
-        // 5. NOW send the complete package to the createEntry function.
-        await createEntry(newEntry);
     });
 
     // --- AUTHENTICATION UI MANAGEMENT ---
@@ -147,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loginLink.onclick = (e) => {
                     e.preventDefault();
                     localStorage.removeItem('hbuk_token');
-                    alert('Logged out successfully.');
+                    showNotification('Logged out successfully.', 'success');
                     window.location.reload();
                 };
             }

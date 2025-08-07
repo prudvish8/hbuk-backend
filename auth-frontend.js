@@ -11,16 +11,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
+            // Get the submit button and disable it
+            const submitButton = registerForm.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Loading...';
+            
             try {
                 const data = await apiRequest('/api/register', 'POST', { email, password });
                 
                 if (data) {
-                    alert('Registration successful! Please log in.');
+                    showNotification('Registration successful! Please log in.', 'success');
                     window.location.href = 'login.html';
                 }
             } catch (error) {
                 console.error('Registration error:', error);
-                alert('Registration failed. Please check your connection and try again.');
+                showNotification('Registration failed. Please check your connection and try again.', 'error');
+            } finally {
+                // Re-enable the button and restore original text
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
             }
         });
     }
@@ -34,18 +44,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
+            // Get the submit button and disable it
+            const submitButton = loginForm.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Loading...';
+            
             try {
                 const data = await apiRequest('/api/login', 'POST', { email, password });
                 
                 if (data && data.token) {
                     // Save the JWT token to localStorage
                     localStorage.setItem('hbuk_token', data.token);
-                    alert('Login successful! Welcome to Hbuk.');
+                    showNotification('Login successful! Welcome to Hbuk.', 'success');
                     window.location.href = 'index.html';
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                alert('Login failed. Please check your connection and try again.');
+                showNotification('Login failed. Please check your connection and try again.', 'error');
+            } finally {
+                // Re-enable the button and restore original text
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
             }
         });
     }

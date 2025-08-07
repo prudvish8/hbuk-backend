@@ -34,7 +34,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
         if (response.status === 401 || response.status === 403) {
             // Token is invalid or expired - logout immediately
             localStorage.removeItem('hbuk_token');
-            alert('Session expired. Please log in again.');
+            showNotification('Session expired. Please log in again.', 'error');
             window.location.href = 'login.html';
             return null;
         }
@@ -51,4 +51,29 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
         console.error('API request failed:', error);
         throw error;
     }
+}
+
+// Notification system function
+function showNotification(message, type = 'info') {
+    const notificationBar = document.getElementById('notification-bar');
+    if (!notificationBar) return;
+    
+    // Clear any existing classes and content
+    notificationBar.className = '';
+    notificationBar.textContent = '';
+    
+    // Set the message and type
+    notificationBar.textContent = message;
+    notificationBar.classList.add(type);
+    
+    // Show the notification
+    notificationBar.classList.add('show');
+    
+    // Hide after 4 seconds
+    setTimeout(() => {
+        notificationBar.classList.add('fade-out');
+        setTimeout(() => {
+            notificationBar.classList.remove('show', 'fade-out', type);
+        }, 500);
+    }, 4000);
 } 
