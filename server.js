@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
@@ -49,7 +49,7 @@ async function startServer() {
         app.get('/api/entries', authenticateToken, async (req, res) => {
             try {
                 const collection = db.collection('entries');
-                const entries = await collection.find({ userId: req.user.userId }).toArray();
+                const entries = await collection.find({ userId: new ObjectId(req.user.userId) }).toArray();
                 res.json(entries);
             } catch (err) {
                 console.error("Error reading from database:", err);
