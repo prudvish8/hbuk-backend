@@ -7,8 +7,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { rateLimit } = require('express-rate-limit');
-const { validate } = require('./validation');
-const { registerSchema, loginSchema, entrySchema } = require('./validation');
+const { validate, registerSchema, loginSchema, entrySchema } = require('./validation');
 const { authenticateToken } = require('./auth');
 
 const app = express();
