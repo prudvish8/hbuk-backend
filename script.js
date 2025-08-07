@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const commitButton = document.getElementById('commit-button');
     const historyContainer = document.getElementById('history-container');
     const localDraftKey = 'hbuk_local_draft';
+    
+    // Global entries array to store all entries
+    let entries = [];
 
     // --- CORE FUNCTIONS ---
 
@@ -29,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAndRenderEntries() {
         try {
-            const entries = await apiRequest('/api/entries');
+            entries = await apiRequest('/api/entries');
             if (entries) {
                 renderEntries(entries);
             }
@@ -62,16 +65,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- REFACTORED: The main entry creation logic ---
     async function createEntry(entryData) {
         try {
-            const result = await apiRequest('/api/commit', 'POST', entryData);
-            if (result) {
-                console.log('Backend response:', result);
+            // Send the new entry to the backend to be saved
+            const savedEntry = await apiRequest('/api/commit', 'POST', entryData);
+
+            if (savedEntry) {
+                console.log('Backend response:', savedEntry);
+
+                // --- THIS IS THE CRITICAL FIX ---
+                // Instead of re-fetching the whole list, we will manually
+                // add the newly saved entry to our existing local list.
+
+                // 1. Get the current list of entries from the page's memory
+                // (We need to define 'entries' at the top level of our script)
+                entries.push(savedEntry.entry);
+
+                // 2. Re-render the history with the updated list
+                renderEntries(entries);
+
+                // 3. Clear the editor and the local draft
                 localStorage.removeItem(localDraftKey);
                 editor.value = '';
-                fetchAndRenderEntries();
             }
         } catch (error) {
             console.error('Error sending entry to backend:', error);
-            alert('Could not save entry. Please check if the backend is running.');
+            // The apiRequest function will handle showing the notification
         }
     }
 
