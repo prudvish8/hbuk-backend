@@ -1,6 +1,7 @@
 // The definitive, correct script.js file for Hbuk
 
 import { apiRequest } from './api-utils.js';
+import { showNotification } from './ui-notify.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
@@ -11,17 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global entries array to store all entries
     let entries = [];
 
-    // --- NOTIFICATION FUNCTION ---
-    function showNotification(text, type = 'info') {
-        console[type === 'error' ? 'error' : 'log']('[HBUK]', text);
-        const el = document.getElementById('notif');
-        if (el) {
-            el.textContent = text;
-            el.className = `notif ${type}`;
-        } else {
-            alert(text);
-        }
-    }
+
 
     // --- CORE FUNCTIONS ---
 
@@ -46,12 +37,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchAndRenderEntries() {
         try {
-            entries = await apiRequest('/api/entries');
-            if (entries) {
+            const data = await apiRequest('/api/entries');
+            if (data && Array.isArray(data.entries)) {
+                entries = data.entries;
                 renderEntries(entries);
+            } else {
+                entries = [];
+                renderEntries([]);
             }
         } catch (error) {
             console.error('Could not fetch entries:', error);
+            showNotification('Failed to load entries: ' + error.message, 'error');
+            entries = [];
+            renderEntries([]);
         }
     }
 

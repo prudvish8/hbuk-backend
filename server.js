@@ -238,22 +238,35 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/commit', authenticateToken, validate(entrySchema), async (req, res) => {
     try {
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ error: 'User ID not found in token' });
+        }
+        
         const newEntry = {
             ...req.body,
-            userId: new ObjectId(req.user.userId) // Ensure userId is stored as ObjectId
+            userId: new ObjectId(userId), // Ensure userId is stored as ObjectId
+            createdAt: new Date()
         };
         const result = await db.collection('entries').insertOne(newEntry);
         res.status(201).json({ message: 'Entry saved successfully!', entry: newEntry, id: result.insertedId });
     } catch (err) {
+        console.error('Commit error:', err);
         res.status(500).json({ error: "Could not save to database." });
     }
 });
 
 app.get('/api/entries', authenticateToken, async (req, res) => {
     try {
-        const entries = await db.collection('entries').find({ userId: new ObjectId(req.user.userId) }).toArray();
-        res.json(entries);
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ error: 'User ID not found in token' });
+        }
+        
+        const entries = await db.collection('entries').find({ userId: new ObjectId(userId) }).toArray();
+        res.json({ entries });
     } catch (err) {
+        console.error('Entries error:', err);
         res.status(500).json({ error: "Could not read from database." });
     }
 });

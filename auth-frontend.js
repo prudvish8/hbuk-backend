@@ -2,24 +2,13 @@
 // <script type="module" src="auth-frontend.js"></script>
 
 import { apiRequest, setToken, clearToken } from './api-utils.js';
+import { showNotification } from './ui-notify.js';
 
 function qs(id) { return document.getElementById(id); }
 function setBusy(btn, busy, labelNormal, labelBusy) {
   if (!btn) return;
   btn.disabled = !!busy;
   btn.textContent = busy ? labelBusy : labelNormal;
-}
-
-function showNotification(text, type = 'info') {
-  // Minimal UX hook; replace with your UI
-  console[type === 'error' ? 'error' : 'log']('[HBUK]', text);
-  const el = qs('notif');
-  if (el) {
-    el.textContent = text;
-    el.className = `notif ${type}`;
-  } else {
-    alert(text);
-  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
