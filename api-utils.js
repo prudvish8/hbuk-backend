@@ -1,5 +1,18 @@
 // Shared API utility functions for Hbuk application
 
+// The definitive, environment-aware API configuration
+let baseURL;
+
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') {
+    // We are in a local development environment
+    baseURL = 'http://localhost:3000';
+    console.log('Running in development mode. API endpoint: ' + baseURL);
+} else {
+    // We are in the live production environment
+    baseURL = 'https://hbuk-backend-hvow.onrender.com';
+    console.log('Running in production mode. API endpoint: ' + baseURL);
+}
+
 // Smart API request wrapper with authentication handling
 async function apiRequest(endpoint, method = 'GET', body = null) {
     try {
@@ -28,7 +41,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
         }
         
         // Make the fetch request
-        const response = await fetch(`https://hbuk-backend-hvow.onrender.com${endpoint}`, options);
+        const response = await fetch(`${baseURL}${endpoint}`, options);
         
         // Check for authentication errors
         if (response.status === 401 || response.status === 403) {

@@ -9,15 +9,27 @@ const jwt = require('jsonwebtoken');
 const { rateLimit } = require('express-rate-limit');
 const { validate, registerSchema, loginSchema, entrySchema } = require('./validation');
 const { authenticateToken } = require('./auth');
+const { Resend } = require('resend');
 
 const app = express();
 
 // --- MIDDLEWARE ORDER ---
 app.set('trust proxy', 1);
-app.use(cors({ origin: 'https://hbuk.xyz' }));
+// The definitive, final, and correct CORS configuration for Hbuk
+
+if (process.env.NODE_ENV === 'production') {
+    // In production, only allow our live frontend
+    app.use(cors({ origin: 'https://hbuk.xyz' }));
+} else {
+    // In development, allow all origins for easy testing
+    app.use(cors());
+}
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use(limiter);
 app.use(express.json());
+
+// --- RESEND SDK INITIALIZATION ---
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // --- DATABASE CONNECTION ---
 const url = process.env.MONGODB_URL;
@@ -52,6 +64,37 @@ app.post('/api/register', validate(registerSchema), async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
         await usersCollection.insertOne({ email, hashedPassword });
         res.status(201).json({ message: "User registered successfully!" });
+        
+        // Send welcome email
+        try {
+            await resend.emails.send({
+                from: 'Hbuk <welcome@hbuk.xyz>',
+                to: email,
+                subject: 'Welcome to Hbuk: Your Digital History Begins',
+                html: `
+                    <div style="font-family: sans-serif; line-height: 1.6;">
+                        <h1 style="color: #1a1a1a;">Welcome to Hbuk.</h1>
+                        <p>Your personal history book is now open. This is a private, permanent space for your thoughts, ideas, and journey.</p>
+                        <p>Hbuk is built on a simple, powerful philosophy:</p>
+                        <ul style="padding-left: 20px;">
+                            <li><strong>Honesty:</strong> What you write is what you wrote. There is no editing the past.</li>
+                            <li><strong>Immortality:</strong> Your thoughts persist beyond the moment.</li>
+                            <li><strong>Privacy:</strong> Your mind is your own. Your entries are yours alone.</li>
+                        </ul>
+                        <p>As it is written in our founding document:</p>
+                        <blockquote style="border-left: 4px solid #ccc; padding-left: 15px; margin-left: 0; font-style: italic;">
+                            "We're planting the tree of honest digital memory. Let it grow."
+                        </blockquote>
+                        <p>Your journey begins now.</p>
+                        <p>— The Hbuk Team</p>
+                    </div>
+                `
+            });
+            console.log(`Welcome email sent to ${email}`);
+        } catch (emailError) {
+            console.error("Error sending welcome email:", emailError);
+            // We don't block the registration if the email fails, just log the error.
+        }
     } catch (err) {
         res.status(500).json({ message: "Could not register user." });
     }
