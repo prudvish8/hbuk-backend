@@ -13,64 +13,45 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     console.log('Running in production mode. API endpoint: ' + baseURL);
 }
 
-// Smart API request wrapper with authentication handling
 async function apiRequest(endpoint, method = 'GET', body = null) {
+    const token = localStorage.getItem('hbuk_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
-        // Get token from localStorage
-        const token = localStorage.getItem('hbuk_token');
-        
-        // Prepare request headers
-        const headers = {
-            'Content-Type': 'application/json'
-        };
-        
-        // Add Authorization header if token exists
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
+        const response = await fetch(baseURL + endpoint, {
+            method,
+            headers,
+            body: body ? JSON.stringify(body) : null,
+        });
+
+        if (!response.ok) {
+            let errorMsg = `HTTP error! status: ${response.status}`;
+            try {
+                const data = await response.json();
+                if (data && data.message) {
+                    errorMsg = data.message; // Use the specific message from the backend
+                }
+            } catch (e) {
+                // Ignore JSON parsing errors if the response body is not JSON
+            }
+            throw new Error(errorMsg);
         }
-        
-        // Prepare request options
-        const options = {
-            method: method,
-            headers: headers
-        };
-        
-        // Add body if provided
-        if (body) {
-            options.body = JSON.stringify(body);
-        }
-        
-        // Make the fetch request
-        const response = await fetch(`${baseURL}${endpoint}`, options);
-        
-        // Check for authentication errors
-        if (response.status === 401 || response.status === 403) {
+
+        return response.json();
+
+    } catch (error) {
+        console.error('API request failed:', error);
+        if (error.message.includes('401') || error.message.includes('403')) {
             // Token is invalid or expired - logout immediately
             localStorage.removeItem('hbuk_token');
             showNotification('Session expired. Please log in again.', 'error');
             window.location.href = 'login.html';
             return null;
         }
-        
-        // Check for other errors
-        if (!response.ok) {
-            try {
-                // Try to get the specific error message from the server
-                const errorData = await response.json();
-                const errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
-                throw new Error(errorMessage);
-            } catch (parseError) {
-                // If we can't parse the error response, fall back to generic error
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-        }
-        
-        // Return JSON data for successful responses
-        return await response.json();
-        
-    } catch (error) {
-        console.error('API request failed:', error);
-        throw error;
+        throw error; // Re-throw the error to be caught by the calling function
     }
 }
 
