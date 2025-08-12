@@ -103,7 +103,8 @@ app.use(cors({
 
 // Security and body parsing middleware (early in stack)
 app.set('trust proxy', 1); // Render behind proxy
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false })); // Keep CSP disabled for now
+app.use(helmet.hsts({ maxAge: 15552000 })); // 180 days HTTPS-only hint
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -388,6 +389,8 @@ app.get('/api/anchors/today', publicLimiter, async (_req, res) => {
 
     const hashes = [];
     for await (const doc of cursor) hashes.push(doc.digest);
+    // IMPORTANT: sort leaves so the Merkle root is deterministic across runs
+    hashes.sort(); // lexicographic sort for stable root
     const root = merkleRoot(hashes);
     res.set('Cache-Control', 'public, max-age=60'); // 60s cache
     res.status(200).json({ date: start.toISOString().slice(0,10), count: hashes.length, root });
@@ -449,6 +452,8 @@ app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
 
     const hashes = [];
     for await (const doc of cursor) hashes.push(doc.digest);
+    // IMPORTANT: sort leaves so the Merkle root is deterministic across runs
+    hashes.sort(); // lexicographic sort for stable root
 
     const root = merkleRoot(hashes);
     const proof = merkleProof(hashes, entry.digest);
@@ -473,15 +478,29 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
     const cursorId = req.query.cursor ? new ObjectId(req.query.cursor) : null;
 
-    const query = { userId };
-    if (cursorId) query._id = { $lt: cursorId };
+    const match = { userId };
+    if (cursorId) match._id = { $lt: cursorId };
 
-    const docs = await db.collection('entries')
-      .find(query, { projection: { content: 1, createdAt: 1, digest: 1, signature: 1, sigAlg: 1, sigKid: 1, type: 1 } })
-      .sort({ _id: -1 })
-      .limit(limit + 1)
-      .toArray();
+    const pipeline = [
+      { $match: match },
+      { $lookup: {
+          from: 'entries',
+          let: { id: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [
+              { $eq: ['$type', 'tombstone'] },
+              { $eq: ['$originalId', '$$id'] }
+            ] } } }
+          ],
+          as: 'tombs'
+      }},
+      { $addFields: { isDeleted: { $gt: [ { $size: '$tombs' }, 0 ] } } },
+      { $project: { tombs: 0 } },
+      { $sort: { _id: -1 } },
+      { $limit: limit + 1 }
+    ];
 
+    const docs = await db.collection('entries').aggregate(pipeline).toArray();
     const hasMore = docs.length > limit;
     const items = hasMore ? docs.slice(0, limit) : docs;
     const nextCursor = hasMore ? String(items[items.length - 1]._id) : null;

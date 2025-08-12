@@ -1,14 +1,25 @@
 // api-utils.js — hardened ESM utilities for Hbuk
 
-// Allow override from HTML before this script runs:
-//   <script>window.API_BASE='https://my-api.example.com'</script>
-const heuristicBase = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:')
-  ? 'http://localhost:3000'
-  : 'https://hbuk-backend-hvow.onrender.com';
-
-export const API_BASE =
-  (typeof window !== 'undefined' && window.API_BASE) ||
-  heuristicBase;
+// Dynamic API base URL configuration
+export const API_BASE = (() => {
+  // Prefer environment variable first
+  if (import.meta?.env?.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE;
+  }
+  
+  // Then check for window override
+  if (typeof window !== 'undefined' && window.API_BASE) {
+    return window.API_BASE;
+  }
+  
+  // Check if we're on localhost
+  if (typeof window !== 'undefined' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:')) {
+    return 'http://localhost:3000';
+  }
+  
+  // Default to production
+  return 'https://hbuk-backend-hvow.onrender.com';
+})();
 
 console.log('[HBUK] API_BASE:', API_BASE);
 
