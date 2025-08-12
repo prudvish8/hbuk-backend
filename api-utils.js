@@ -13,7 +13,7 @@ if (window.location.hostname === 'localhost' || window.location.hostname === '12
     console.log('Running in production mode. API endpoint: ' + baseURL);
 }
 
-async function apiRequest(endpoint, method = 'GET', body = null) {
+async function apiRequest(endpoint, options = {}) {
     const token = localStorage.getItem('hbuk_token');
     const headers = { 'Content-Type': 'application/json' };
     if (token) {
@@ -22,25 +22,23 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 
     try {
         const response = await fetch(baseURL + endpoint, {
-            method,
-            headers,
-            body: body ? JSON.stringify(body) : null,
+            ...options,
+            headers: { ...headers, ...(options.headers || {}) },
         });
 
-        if (!response.ok) {
-            let errorMsg = `HTTP error! status: ${response.status}`;
-            try {
-                const data = await response.json();
-                if (data && data.message) {
-                    errorMsg = data.message; // Use the specific message from the backend
-                }
-            } catch (e) {
-                // Ignore JSON parsing errors if the response body is not JSON
-            }
-            throw new Error(errorMsg);
+        let data;
+        try {
+            data = await response.json();
+        } catch {
+            data = null; // Response was not JSON
         }
 
-        return response.json();
+        if (!response.ok) {
+            const message = data?.message || `HTTP error! status: ${response.status}`;
+            throw new Error(message);
+        }
+
+        return data;
 
     } catch (error) {
         console.error('API request failed:', error);
@@ -51,7 +49,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
             window.location.href = 'login.html';
             return null;
         }
-        throw error; // Re-throw the error to be caught by the calling function
+        throw error;
     }
 }
 

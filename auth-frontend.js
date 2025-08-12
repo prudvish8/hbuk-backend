@@ -7,32 +7,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            // Get the submit button and disable it
-            const submitButton = registerForm.querySelector('button[type="submit"]');
-            const originalText = submitButton.textContent;
-            submitButton.disabled = true;
-            submitButton.textContent = 'Loading...';
-            
+            const button = e.target.querySelector('button');
+            button.disabled = true;
+            button.textContent = 'Loading...';
+
+            const email = e.target.email.value;
+            const password = e.target.password.value;
+
             try {
-                const data = await apiRequest('/api/register', 'POST', { email, password });
-                
-                if (data) {
-                    showNotification('Registration successful! Please log in.', 'success');
-                    window.location.href = 'login.html';
-                }
+                await apiRequest('/api/register', {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password }),
+                });
+                showNotification('Registration successful! Please log in.', 'success');
+                setTimeout(() => window.location.href = 'login.html', 2000);
             } catch (error) {
-                console.error('Registration error:', error);
-                // Display the specific error message from the server
-                const errorMessage = error.message || 'Registration failed. Please check your connection and try again.';
-                showNotification(errorMessage, 'error');
+                showNotification(error.message, 'error');
             } finally {
-                // Re-enable the button and restore original text
-                submitButton.disabled = false;
-                submitButton.textContent = originalText;
+                button.disabled = false;
+                button.textContent = 'Register';
             }
         });
     }
