@@ -1,5 +1,7 @@
 // The definitive, correct script.js file for Hbuk
 
+import { apiRequest } from './api-utils.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commit-button');
@@ -8,6 +10,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Global entries array to store all entries
     let entries = [];
+
+    // --- NOTIFICATION FUNCTION ---
+    function showNotification(text, type = 'info') {
+        console[type === 'error' ? 'error' : 'log']('[HBUK]', text);
+        const el = document.getElementById('notif');
+        if (el) {
+            el.textContent = text;
+            el.className = `notif ${type}`;
+        } else {
+            alert(text);
+        }
+    }
 
     // --- CORE FUNCTIONS ---
 
