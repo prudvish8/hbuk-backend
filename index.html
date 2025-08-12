@@ -7,10 +7,15 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="notifications.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+      .notif{margin:12px 0;padding:10px;border-radius:8px;background:#f4f4f5}
+      .notif.success{background:#e6ffed}
+      .notif.error{background:#ffecec}
+    </style>
 </head>
 <body>
-    <!-- Notification bar -->
-    <div id="notification-bar"></div>
+    <!-- Notification area -->
+    <div id="notif" class="notif" aria-live="polite"></div>
     
     <div id="app-container">
         <div class="header">
