@@ -13,6 +13,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let entries = [];
 
     // --- JWT EXPIRY CHECKING ---
+    function computeDigestLocal({ userId, content, createdAt, location }) {
+        const payload = JSON.stringify({
+            userId: String(userId),
+            content,
+            createdAt: new Date(createdAt).toISOString(),
+            location: location || null
+        });
+        // Browser SHA-256 (SubtleCrypto)
+        const enc = new TextEncoder().encode(payload);
+        return crypto.subtle.digest('SHA-256', enc).then(buf =>
+            [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('')
+        );
+    }
+
     function isExpired(jwt) {
         try {
             const [, payload] = jwt.split('.');
@@ -263,6 +277,49 @@ document.addEventListener('DOMContentLoaded', () => {
             commitButton.textContent = originalText;
         }
     });
+
+    // --- EXPORT FUNCTIONALITY ---
+    async function exportAllEntries() {
+        try {
+            const response = await fetch(`${API_BASE}/api/export`, {
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Export failed: ${response.status}`);
+            }
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'hbuk-export.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            
+            showNotification('Export downloaded successfully!', 'success');
+        } catch (error) {
+            console.error('Export error:', error);
+            showNotification('Export failed: ' + error.message, 'error');
+        }
+    }
+
+    // Add export button to the page
+    const exportButton = document.createElement('button');
+    exportButton.textContent = '📥 Export All';
+    exportButton.className = 'export-button';
+    exportButton.style.cssText = 'margin-left: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;';
+    exportButton.onclick = exportAllEntries;
+    
+    // Insert export button after commit button
+    if (commitButton && commitButton.parentNode) {
+        commitButton.parentNode.insertBefore(exportButton, commitButton.nextSibling);
+    }
 
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {

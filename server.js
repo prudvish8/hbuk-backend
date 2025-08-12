@@ -35,6 +35,9 @@ function sha256HexStr(s){ return crypto.createHash('sha256').update(s,'utf8').di
 const SIG_ALG = 'HS256';
 const SIG_KID = process.env.HBUK_SIGNING_KID || 'v1';
 
+// Metrics collection (Prometheus-style)
+let METRICS = { commits_total: 0, tombstones_total: 0, verify_total: 0, anchors_today_hits: 0 };
+
 function merkleRoot(hashes){
   if (!hashes || hashes.length === 0) return null;
   let layer = hashes.slice();
@@ -171,6 +174,15 @@ let db;
 // Health endpoints
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true, ts: new Date().toISOString() });
+});
+
+app.get('/metrics', (_req, res) => {
+  res.type('text/plain').send(
+    `hbuk_commits_total ${METRICS.commits_total}\n` +
+    `hbuk_tombstones_total ${METRICS.tombstones_total}\n` +
+    `hbuk_verify_total ${METRICS.verify_total}\n` +
+    `hbuk_anchor_today_hits ${METRICS.anchors_today_hits}\n`
+  );
 });
 
 app.get('/health/db', async (_req, res) => {
@@ -314,6 +326,7 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     doc.sigKid = SIG_KID;
 
     const result = await db.collection('entries').insertOne(doc);
+    METRICS.commits_total++;
 
     res.status(201).json({
       id: String(result.insertedId),
@@ -339,6 +352,7 @@ app.get('/api/verify/:id/:digest', publicLimiter, async (req, res) => {
     if (!entry) return res.status(404).json({ error: 'Not found' });
 
     const ok = entry.digest === digest;
+    METRICS.verify_total++;
     // do NOT expose signature by default; it's server witness
     return res.status(200).json({ ok });
   } catch (e) {
@@ -366,12 +380,31 @@ app.delete('/api/entries/:id', authenticateToken, async (req, res) => {
     };
 
     const tRes = await db.collection('entries').insertOne(tombstone);
+    METRICS.tombstones_total++;
     // (Optional) you can mark the UI to hide original when a tombstone exists; do NOT mutate the original doc.
 
     return res.status(201).json({ tombstoneId: String(tRes.insertedId) });
   } catch (e) {
     console.error('tombstone error:', e);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- EXPORT: user's complete data export ---
+app.get('/api/export', authenticateToken, async (req, res) => {
+  try {
+    const userId = new ObjectId(req.user.sub);
+    const entries = await db.collection('entries')
+      .find({ userId })
+      .project({ content:1, createdAt:1, digest:1, signature:1, sigAlg:1, sigKid:1, type:1, originalId:1, originalDigest:1 })
+      .sort({ createdAt: 1 })
+      .toArray();
+    res.setHeader('Content-Type','application/json');
+    res.setHeader('Content-Disposition','attachment; filename="hbuk-export.json"');
+    res.status(200).send(JSON.stringify({ user: req.user.sub, exportedAt: new Date().toISOString(), entries }, null, 2));
+  } catch (e) {
+    console.error('export error:', e);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -392,6 +425,7 @@ app.get('/api/anchors/today', publicLimiter, async (_req, res) => {
     // IMPORTANT: sort leaves so the Merkle root is deterministic across runs
     hashes.sort(); // lexicographic sort for stable root
     const root = merkleRoot(hashes);
+    METRICS.anchors_today_hits++;
     res.set('Cache-Control', 'public, max-age=60'); // 60s cache
     res.status(200).json({ date: start.toISOString().slice(0,10), count: hashes.length, root });
   } catch (e) {
