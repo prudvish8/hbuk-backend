@@ -1,79 +1,83 @@
-// Shared API utility functions for Hbuk application
+// api-utils.js — hardened ESM utilities for Hbuk
 
-// The definitive, environment-aware API configuration
-let baseURL;
+// Allow override from HTML before this script runs:
+//   <script>window.API_BASE='https://my-api.example.com'</script>
+const heuristicBase = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.protocol === 'file:')
+  ? 'http://localhost:3000'
+  : 'https://hbuk-backend-hvow.onrender.com';
 
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') {
-    // We are in a local development environment
-    baseURL = 'http://localhost:3000';
-    console.log('Running in development mode. API endpoint: ' + baseURL);
-} else {
-    // We are in the live production environment
-    baseURL = 'https://hbuk-backend-hvow.onrender.com';
-    console.log('Running in production mode. API endpoint: ' + baseURL);
+export const API_BASE =
+  (typeof window !== 'undefined' && window.API_BASE) ||
+  heuristicBase;
+
+console.log('[HBUK] API_BASE:', API_BASE);
+
+// Token helpers (localStorage by design for simple MVP)
+const TOKEN_KEY = 'hbuk_token';
+export function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || null; } catch { return null; }
 }
+export function setToken(t) {
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {}
+}
+export function clearToken() { setToken(null); }
 
-async function apiRequest(endpoint, options = {}) {
-    const token = localStorage.getItem('hbuk_token');
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+// Core fetch wrapper with timeout and rich errors
+export async function apiRequest(path, options = {}) {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 20000;
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  const token = getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    ...(options.headers || {}),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers,
+      // we don't rely on cookies; JWT is in Authorization
+      // credentials: 'include' // not needed for header-based auth
+      mode: 'cors',
+    });
+
+    // Read the body text once; we'll parse conditionally
+    const raw = await res.text().catch(() => '');
+
+    // Helper: best-effort JSON parse
+    const toJson = () => {
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch { return null; }
+    };
+
+    if (!res.ok) {
+      const data = toJson();
+      const msg = (data && (data.error || data.message)) || raw || res.statusText || 'Request failed';
+      console.error('[HBUK] API non-OK', res.status, msg);
+      // Do NOT auto-logout unless the app wires it explicitly
+      const err = new Error(`HTTP ${res.status} – ${msg}`);
+      err.status = res.status;
+      err.body = data ?? raw;
+      throw err;
     }
 
-    try {
-        const response = await fetch(baseURL + endpoint, {
-            ...options,
-            headers: { ...headers, ...(options.headers || {}) },
-        });
+    // 204 No Content or empty body
+    if (res.status === 204 || raw.trim() === '') return null;
 
-        let data;
-        try {
-            data = await response.json();
-        } catch {
-            data = null; // Response was not JSON
-        }
-
-        if (!response.ok) {
-            const message = data?.message || `HTTP error! status: ${response.status}`;
-            throw new Error(message);
-        }
-
-        return data;
-
-    } catch (error) {
-        console.error('API request failed:', error);
-        if (error.message.includes('401') || error.message.includes('403')) {
-            // Token is invalid or expired - logout immediately
-            localStorage.removeItem('hbuk_token');
-            showNotification('Session expired. Please log in again.', 'error');
-            window.location.href = 'login.html';
-            return null;
-        }
-        throw error;
-    }
-}
-
-// Notification system function
-function showNotification(message, type = 'info') {
-    const notificationBar = document.getElementById('notification-bar');
-    if (!notificationBar) return;
-    
-    // Clear any existing classes and content
-    notificationBar.className = '';
-    notificationBar.textContent = '';
-    
-    // Set the message and type
-    notificationBar.textContent = message;
-    notificationBar.classList.add(type);
-    
-    // Show the notification
-    notificationBar.classList.add('show');
-    
-    // Hide after 4 seconds
-    setTimeout(() => {
-        notificationBar.classList.add('fade-out');
-        setTimeout(() => {
-            notificationBar.classList.remove('show', 'fade-out', type);
-        }, 500);
-    }, 4000);
+    const data = toJson();
+    return (data !== null) ? data : raw;
+  } catch (e) {
+    const msg = e?.name === 'AbortError' ? 'Request timed out' : (e?.message || 'Network error');
+    console.error('[HBUK] API request failed:', msg);
+    throw new Error(msg);
+  } finally {
+    clearTimeout(id);
+  }
 } 

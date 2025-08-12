@@ -1,69 +1,85 @@
-// Hbuk Authentication Script
-// Handles registration and login forms
+// auth-frontend.js — ESM login/register flows
+// <script type="module" src="auth-frontend.js"></script>
+
+import { apiRequest, setToken, clearToken } from './api-utils.js';
+
+function qs(id) { return document.getElementById(id); }
+function setBusy(btn, busy, labelNormal, labelBusy) {
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? labelBusy : labelNormal;
+}
+
+function showNotification(text, type = 'info') {
+  // Minimal UX hook; replace with your UI
+  console[type === 'error' ? 'error' : 'log']('[HBUK]', text);
+  const el = qs('notif');
+  if (el) {
+    el.textContent = text;
+    el.className = `notif ${type}`;
+  } else {
+    alert(text);
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Registration Form Handler
-    const registerForm = document.getElementById('register-form');
-    if (registerForm) {
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const button = e.target.querySelector('button');
-            button.disabled = true;
-            button.textContent = 'Loading...';
+  const loginForm = qs('login-form');
+  const registerForm = qs('register-form');
 
-            const email = e.target.email.value;
-            const password = e.target.password.value;
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = registerForm.querySelector('button[type="submit"]');
+      setBusy(btn, true, 'Register', 'Loading…');
 
-            try {
-                await apiRequest('/api/register', {
-                    method: 'POST',
-                    body: JSON.stringify({ email, password }),
-                });
-                showNotification('Registration successful! Please log in.', 'success');
-                setTimeout(() => window.location.href = 'login.html', 2000);
-            } catch (error) {
-                showNotification(error.message, 'error');
-            } finally {
-                button.disabled = false;
-                button.textContent = 'Register';
-            }
+      const email = registerForm.email?.value?.trim();
+      const password = registerForm.password?.value || '';
+
+      try {
+        if (!email || !password) throw new Error('Email and password are required');
+        await apiRequest('/api/register', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
         });
-    }
-    
-    // Login Form Handler
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            // Get the submit button and disable it
-            const submitButton = loginForm.querySelector('button[type="submit"]');
-            const originalText = submitButton.textContent;
-            submitButton.disabled = true;
-            submitButton.textContent = 'Loading...';
-            
-            try {
-                const data = await apiRequest('/api/login', 'POST', { email, password });
-                
-                if (data && data.token) {
-                    // Save the JWT token to localStorage
-                    localStorage.setItem('hbuk_token', data.token);
-                    showNotification('Login successful! Welcome to Hbuk.', 'success');
-                    window.location.href = 'index.html';
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                // Display the specific error message from the server
-                const errorMessage = error.message || 'Login failed. Please check your connection and try again.';
-                showNotification(errorMessage, 'error');
-            } finally {
-                // Re-enable the button and restore original text
-                submitButton.disabled = false;
-                submitButton.textContent = originalText;
-            }
+        showNotification('Registration successful. Please log in.', 'success');
+        setTimeout(() => (window.location.href = 'login.html'), 1000);
+      } catch (err) {
+        showNotification(err.message || 'Registration failed', 'error');
+      } finally {
+        setBusy(btn, false, 'Register', 'Loading…');
+      }
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = loginForm.querySelector('button[type="submit"]');
+      setBusy(btn, true, 'Login', 'Loading…');
+
+      const email = loginForm.email?.value?.trim();
+      const password = loginForm.password?.value || '';
+
+      try {
+        if (!email || !password) throw new Error('Email and password are required');
+        const data = await apiRequest('/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
         });
-    }
+
+        if (data?.token) {
+          setToken(data.token);
+          showNotification('Login successful. Redirecting…', 'success');
+          setTimeout(() => (window.location.href = 'index.html'), 600);
+        } else {
+          throw new Error('No token received from server');
+        }
+      } catch (err) {
+        clearToken();
+        showNotification(err.message || 'Login failed', 'error');
+      } finally {
+        setBusy(btn, false, 'Login', 'Loading…');
+      }
+    });
+  }
 }); 

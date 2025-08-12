@@ -66,7 +66,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function createEntry(entryData) {
         try {
             // Send the new entry to the backend to be saved
-            const savedEntry = await apiRequest('/api/commit', 'POST', entryData);
+            const savedEntry = await apiRequest('/api/commit', {
+                method: 'POST',
+                body: JSON.stringify(entryData)
+            });
 
             if (savedEntry) {
                 console.log('Backend response:', savedEntry);
