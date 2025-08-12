@@ -197,3 +197,52 @@ const publicLimiter = rateLimit({
 **Last Updated**: 2025-08-12  
 **Version**: Production v1.0  
 **Maintainer**: Development Team
+
+## **📅 Monthly Maintenance Routine**
+
+### **Backup Verification**
+- **Atlas Backups**: Verify automated backups are enabled
+- **Restore Drill**: Monthly restore to temporary cluster
+- **Data Integrity Test**: 
+  ```bash
+  # After restore, test with a user's entries
+  curl -H "Authorization: Bearer $TEST_TOKEN" "https://temp-cluster/api/entries"
+  ```
+
+### **Secret Rotation Planning**
+- **Current `sigKid`**: `v1` (documented)
+- **Quarterly Rotation**: 
+  1. Generate new `HBUK_SIGNING_SECRET`
+  2. Bump `HBUK_SIGNING_KID` to `v2`
+  3. Deploy and verify new commits include new `sigKid`
+
+### **Security Updates**
+- **npm audit**: Run `npm audit --production` weekly
+- **Patch Strategy**: Apply low-risk updates regularly
+- **Dependency Review**: Monthly review of package updates
+
+## **🚀 Production Deployment Checklist**
+
+### **Environment Variables (Render)**
+```bash
+# Required for production
+HBUK_METRICS_TOKEN=3d3cfed4b3381df1970201cd85f605522ac5d5768fbea54e418080ba18ee85a1
+HBUK_SIGNING_SECRET=your-long-random-string
+HBUK_SIGNING_KID=v1
+JWT_SECRET=your-jwt-secret
+MONGODB_URI=your-mongodb-connection-string
+RESEND_API_KEY=your-resend-api-key
+
+# Optional maintenance switch
+HBUK_MAINTENANCE=0  # Set to 1 during hotfixes
+```
+
+### **Uptime Monitoring Setup**
+1. **Health Endpoint**: `GET /health` every 1 min, alert on 2+ failures
+2. **Database Health**: `GET /health/db` every 1 min, alert on 1+ failure  
+3. **Metrics Collection**: `GET /metrics?token=YOUR_TOKEN` every 5 min
+
+### **GitHub Actions**
+- **Smoke Tests**: Run on every push to main
+- **Health Checks**: Run every 10 minutes via cron
+- **Manual Triggers**: Available via workflow_dispatch

@@ -59,6 +59,14 @@ const app = express();
 // --- MIDDLEWARE ORDER ---
 app.set('trust proxy', 1);
 
+// Maintenance switch - flip HBUK_MAINTENANCE=1 in Render to return 503
+app.use((req, res, next) => {
+  if (process.env.HBUK_MAINTENANCE === '1') {
+    return res.status(503).json({ error: 'Service in maintenance, please retry shortly.' });
+  }
+  next();
+});
+
 // Request logger middleware
 function requestLogger(req, res, next) {
   const id = crypto.randomBytes(4).toString('hex');
