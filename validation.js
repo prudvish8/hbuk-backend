@@ -15,13 +15,11 @@ export const loginSchema = Joi.object({
 });
 
 export const entrySchema = Joi.object({
-    text: Joi.string().max(10000).required(),
-    timestamp: Joi.string().isoDate().required(),
+    content: Joi.string().max(100000).required(),
     location: Joi.object({
         latitude: Joi.any().required(),
         longitude: Joi.any().required()
-    }).optional(),
-    locationName: Joi.string().max(200).allow('').optional()
+    }).optional()
 });
 
 // --- Middleware Function ---

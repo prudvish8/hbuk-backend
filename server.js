@@ -252,7 +252,7 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
   }
 });
 
-app.post('/api/commit', authenticateToken, writeLimiter, async (req, res) => {
+app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), async (req, res) => {
   try {
     const sub = req.user?.sub;
     if (!sub) return res.status(401).json({ error: 'Unauthorized' });
