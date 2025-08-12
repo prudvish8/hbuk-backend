@@ -136,25 +136,18 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    const users = db.collection('users');
-    
-    // Check for existing user
-    const existingUser = await users.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ error: 'User already exists. Please log in.' });
-    }
-
-    // Hash password and create user
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    await users.insertOne({ 
+    // Atomic insert - let MongoDB handle uniqueness
+    const result = await db.collection('users').insertOne({ 
       email, 
       hashedPassword,
       createdAt: new Date()
     });
 
-    // Send welcome email (don't block registration if it fails)
+    // Only send welcome email after successful insert
     try {
       await resend.emails.send({
         from: 'Hbuk <welcome@hbuk.xyz>',
@@ -191,6 +184,9 @@ app.post('/api/register', async (req, res) => {
     });
 
   } catch (e) {
+    if (e?.code === 11000) {
+      return res.status(409).json({ error: 'User already exists. Please log in.' });
+    }
     console.error('Registration error:', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -263,7 +259,7 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
             return res.status(401).json({ error: 'User ID not found in token' });
         }
         
-        const entries = await db.collection('entries').find({ userId: new ObjectId(userId) }).toArray();
+        const entries = await db.collection('entries').find({ userId: new ObjectId(userId) }).sort({ createdAt: -1 }).toArray();
         res.json({ entries });
     } catch (err) {
         console.error('Entries error:', err);
@@ -280,11 +276,21 @@ async function boot() {
 
     // Ensure unique index on email
     try {
-      await db.collection('users').createIndex({ email: 1 }, { unique: true });
-      console.log('✅ Users collection indexed');
+      await db.collection('users').createIndex({ email: 1 }, { unique: true, name: 'uniq_email' });
+      console.log('✅ users.email unique index ensured');
     } catch (indexErr) {
       if (indexErr.code !== 85) { // 85 = index already exists
         console.warn('⚠️ Index creation warning:', indexErr.message);
+      }
+    }
+
+    // Ensure index on entries for efficient sorting
+    try {
+      await db.collection('entries').createIndex({ userId: 1, createdAt: -1 }, { name: 'entries_user_created_idx' });
+      console.log('✅ entries.userId+createdAt index ensured');
+    } catch (indexErr) {
+      if (indexErr.code !== 85) { // 85 = index already exists
+        console.warn('⚠️ Entries index creation warning:', indexErr.message);
       }
     }
 

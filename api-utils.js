@@ -61,7 +61,13 @@ export async function apiRequest(path, options = {}) {
       const data = toJson();
       const msg = (data && (data.error || data.message)) || raw || res.statusText || 'Request failed';
       console.error('[HBUK] API non-OK', res.status, msg);
-      // Do NOT auto-logout unless the app wires it explicitly
+      
+      // Handle 401 (unauthorized) gracefully
+      if (res.status === 401) {
+        try { localStorage.removeItem('hbuk_token'); } catch {}
+        throw new Error('Session expired. Please log in again.');
+      }
+      
       const err = new Error(`HTTP ${res.status} – ${msg}`);
       err.status = res.status;
       err.body = data ?? raw;

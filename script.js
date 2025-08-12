@@ -1,6 +1,6 @@
 // The definitive, correct script.js file for Hbuk
 
-import { apiRequest } from './api-utils.js';
+import { apiRequest, getToken, clearToken } from './api-utils.js';
 import { showNotification } from './ui-notify.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,7 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global entries array to store all entries
     let entries = [];
 
-
+    // --- JWT EXPIRY CHECKING ---
+    function isExpired(jwt) {
+        try {
+            const [, payload] = jwt.split('.');
+            const { exp } = JSON.parse(atob(payload));
+            return !exp || (Date.now() / 1000) >= exp;
+        } catch { 
+            return true; 
+        }
+    }
 
     // --- CORE FUNCTIONS ---
 
@@ -209,11 +218,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- INITIAL PAGE LOAD LOGIC ---
     function initialize() {
-        updateAuthUI();
-        const token = localStorage.getItem('hbuk_token');
-        if (token) {
-            fetchAndRenderEntries();
+        const token = getToken();
+        if (!token || isExpired(token)) {
+            clearToken();
+            showNotification('Please log in to continue.', 'error');
+            window.location.href = 'login.html';
+            return;
         }
+        
+        updateAuthUI();
+        fetchAndRenderEntries();
+        
         const localDraft = localStorage.getItem(localDraftKey);
         if (localDraft) {
             editor.value = localDraft;
