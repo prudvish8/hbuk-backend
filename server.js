@@ -10,7 +10,6 @@ const { rateLimit } = require('express-rate-limit');
 const { validate, registerSchema, loginSchema, entrySchema } = require('./validation');
 const { authenticateToken } = require('./auth');
 const { Resend } = require('resend');
-const bodyParser = require('body-parser');
 
 const app = express();
 
@@ -27,8 +26,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use(limiter);
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // --- RESEND SDK INITIALIZATION ---
 const resend = new Resend(process.env.RESEND_API_KEY);
