@@ -29,6 +29,18 @@ document.addEventListener('DOMContentLoaded', () => {
         historyContainer.innerHTML = '';
         for (const entry of entries) {
             const entryDiv = document.createElement('div');
+            
+            // Check if this entry has a tombstone
+            const hasTombstone = entries.some(t => t.type === 'tombstone' && t.originalId === entry._id);
+            
+            if (entry.type === 'tombstone' || hasTombstone) {
+                // Render deleted entry
+                entryDiv.className = 'entry deleted';
+                entryDiv.innerHTML = '<em>Deleted — tombstone present</em>';
+                historyContainer.appendChild(entryDiv);
+                continue;
+            }
+            
             entryDiv.className = 'entry';
             
             const textP = document.createElement('p');
@@ -48,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 digestP.style.fontSize = '0.8em';
                 digestP.style.color = '#666';
                 digestP.style.fontFamily = 'monospace';
-                digestP.textContent = `Digest: ${entry.digest.slice(0,16)}…`;
+                digestP.textContent = `Digest: ${entry.digest.slice(0,12)}…`;
                 entryDiv.appendChild(digestP);
             }
             

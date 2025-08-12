@@ -29,6 +29,22 @@ function commitDigest({ userId, content, createdAt, location }) {
   return sha256Hex(payload);
 }
 
+function sha256HexStr(s){ return crypto.createHash('sha256').update(s,'utf8').digest('hex'); }
+function merkleRoot(hashes){
+  if (!hashes || hashes.length === 0) return null;
+  let layer = hashes.slice();
+  while (layer.length > 1) {
+    const next = [];
+    for (let i = 0; i < layer.length; i += 2) {
+      const a = layer[i];
+      const b = layer[i+1] ?? layer[i]; // duplicate last if odd
+      next.push(sha256HexStr(a + b));
+    }
+    layer = next;
+  }
+  return layer[0];
+}
+
 const app = express();
 
 // --- MIDDLEWARE ORDER ---
@@ -291,6 +307,74 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     });
   } catch (e) {
     console.error('commit error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- VERIFY: public, read-only tamper check by id + digest ---
+app.get('/api/verify/:id/:digest', async (req, res) => {
+  try {
+    const { id, digest } = req.params;
+    if (!id || !digest) return res.status(400).json({ error: 'id and digest required' });
+
+    const entry = await db.collection('entries').findOne({ _id: new ObjectId(id) }, { projection: { digest: 1, signature: 1 }});
+    if (!entry) return res.status(404).json({ error: 'Not found' });
+
+    const ok = entry.digest === digest;
+    // do NOT expose signature by default; it's server witness
+    return res.status(200).json({ ok });
+  } catch (e) {
+    console.error('verify error:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- DELETE: append-only "tombstone", do not modify original entry ---
+app.delete('/api/entries/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sub = req.user?.sub;
+    if (!id || !sub) return res.status(400).json({ error: 'Bad request' });
+
+    const original = await db.collection('entries').findOne({ _id: new ObjectId(id), userId: new ObjectId(sub) });
+    if (!original) return res.status(404).json({ error: 'Not found' });
+
+    const tombstone = {
+      type: 'tombstone',
+      userId: new ObjectId(sub),
+      originalId: original._id,
+      originalDigest: original.digest,
+      createdAt: new Date(),        // when deletion was requested
+    };
+
+    const tRes = await db.collection('entries').insertOne(tombstone);
+    // (Optional) you can mark the UI to hide original when a tombstone exists; do NOT mutate the original doc.
+
+    return res.status(201).json({ tombstoneId: String(tRes.insertedId) });
+  } catch (e) {
+    console.error('tombstone error:', e);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// All-user anchor of today's commits (UTC)
+app.get('/api/anchors/today', async (_req, res) => {
+  try {
+    const start = new Date();
+    start.setUTCHours(0,0,0,0);
+    const end = new Date(start); end.setUTCDate(end.getUTCDate()+1);
+
+    const cursor = db.collection('entries').find(
+      { digest: { $exists: true }, createdAt: { $gte: start, $lt: end }, type: { $exists: false } }, // exclude tombstones
+      { projection: { digest: 1 } }
+    );
+
+    const hashes = [];
+    for await (const doc of cursor) hashes.push(doc.digest);
+    const root = merkleRoot(hashes);
+    res.status(200).json({ date: start.toISOString().slice(0,10), count: hashes.length, root });
+  } catch (e) {
+    console.error('anchor error:', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
