@@ -30,6 +30,11 @@ function commitDigest({ userId, content, createdAt, location }) {
 }
 
 function sha256HexStr(s){ return crypto.createHash('sha256').update(s,'utf8').digest('hex'); }
+
+// --- SIGNING KEY METADATA ---
+const SIG_ALG = 'HS256';
+const SIG_KID = process.env.HBUK_SIGNING_KID || 'v1';
+
 function merkleRoot(hashes){
   if (!hashes || hashes.length === 0) return null;
   let layer = hashes.slice();
@@ -296,6 +301,8 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
 
     doc.digest = digest;
     doc.signature = sig;
+    doc.sigAlg = SIG_ALG;
+    doc.sigKid = SIG_KID;
 
     const result = await db.collection('entries').insertOne(doc);
 
@@ -303,7 +310,9 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
       id: String(result.insertedId),
       createdAt: createdAt.toISOString(),
       digest,
-      signature: sig
+      signature: sig,
+      sigAlg: SIG_ALG,
+      sigKid: SIG_KID
     });
   } catch (e) {
     console.error('commit error:', e);
@@ -375,6 +384,76 @@ app.get('/api/anchors/today', async (_req, res) => {
     res.status(200).json({ date: start.toISOString().slice(0,10), count: hashes.length, root });
   } catch (e) {
     console.error('anchor error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+function merkleProof(hashes, target) {
+  // returns array of { side:'L'|'R', hash } from leaf to root
+  const idx = hashes.indexOf(target);
+  if (idx === -1) return null;
+
+  let layer = hashes.map(h => h);
+  let i = idx;
+  const proof = [];
+
+  while (layer.length > 1) {
+    const next = [];
+    for (let p = 0; p < layer.length; p += 2) {
+      const a = layer[p];
+      const b = layer[p+1] ?? layer[p];
+      const node = sha256HexStr(a + b);
+      next.push(node);
+
+      if (p === i || p+1 === i) {
+        const isLeft = (p === i);
+        const sibling = isLeft ? (layer[p+1] ?? layer[p]) : layer[p];
+        proof.push({ side: isLeft ? 'R' : 'L', hash: sibling });
+        i = Math.floor(p / 2);
+      }
+    }
+    layer = next;
+  }
+  return proof;
+}
+
+app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const sub = req.user?.sub;
+    if (!id || !sub) return res.status(400).json({ error: 'Bad request' });
+
+    const entry = await db.collection('entries').findOne(
+      { _id: new ObjectId(id), userId: new ObjectId(sub), digest: { $exists: true } },
+      { projection: { digest: 1, createdAt: 1 } }
+    );
+    if (!entry) return res.status(404).json({ error: 'Not found' });
+
+    // limit to that UTC day (same window as /api/anchors/today)
+    const start = new Date(entry.createdAt); start.setUTCHours(0,0,0,0);
+    const end = new Date(start); end.setUTCDate(end.getUTCDate()+1);
+
+    const cursor = db.collection('entries').find(
+      { digest: { $exists: true }, createdAt: { $gte: start, $lt: end }, type: { $exists: false } },
+      { projection: { digest: 1 } }
+    );
+
+    const hashes = [];
+    for await (const doc of cursor) hashes.push(doc.digest);
+
+    const root = merkleRoot(hashes);
+    const proof = merkleProof(hashes, entry.digest);
+    if (!proof) return res.status(404).json({ error: 'Digest not anchored' });
+
+    res.status(200).json({
+      date: start.toISOString().slice(0,10),
+      digest: entry.digest,
+      root,
+      count: hashes.length,
+      proof // array of { side, hash }
+    });
+  } catch (e) {
+    console.error('proof error:', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

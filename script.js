@@ -53,21 +53,42 @@ document.addEventListener('DOMContentLoaded', () => {
             const locationString = entry.locationName || 'Location not available';
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
             
-            // Add digest display
+            // Add digest display with copy and verify actions
             if (entry.digest) {
-                const digestP = document.createElement('p');
-                digestP.className = 'entry-digest';
-                digestP.style.fontSize = '0.8em';
-                digestP.style.color = '#666';
-                digestP.style.fontFamily = 'monospace';
-                digestP.textContent = `Digest: ${entry.digest.slice(0,12)}…`;
-                entryDiv.appendChild(digestP);
+                const short = entry.digest.slice(0, 12);
+                const verifyUrl = `verify.html#id=${encodeURIComponent(entry._id)}&digest=${encodeURIComponent(entry.digest)}`;
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'entry-actions';
+                actionsDiv.style.marginTop = '8px';
+                actionsDiv.style.fontSize = '0.8em';
+                
+                actionsDiv.innerHTML = `
+                    <small class="muted">digest: <code>${short}…</code></small>
+                    <button class="copy-digest" data-digest="${entry.digest}" style="margin-left: 8px; padding: 2px 6px; font-size: 0.7em;">Copy</button>
+                    <a href="${verifyUrl}" style="margin-left: 8px; color: #0066cc; text-decoration: none;">Verify</a>
+                `;
+                
+                entryDiv.appendChild(actionsDiv);
             }
             
             entryDiv.appendChild(textP);
             entryDiv.appendChild(metaP);
             historyContainer.appendChild(entryDiv);
         }
+        
+        // Wire up copy buttons after rendering
+        document.querySelectorAll('.copy-digest').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const d = btn.getAttribute('data-digest') || '';
+                try { 
+                    await navigator.clipboard.writeText(d); 
+                    showNotification('Digest copied', 'success'); 
+                } catch { 
+                    showNotification('Copy failed', 'error'); 
+                }
+            });
+        });
     }
 
     async function fetchAndRenderEntries() {

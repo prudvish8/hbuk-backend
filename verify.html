@@ -24,6 +24,18 @@
     const id = document.getElementById('entryId');
     const digest = document.getElementById('digest');
     const out = document.getElementById('out');
+    
+    // Prefill fields from hash parameters
+    function prefillFromHash() {
+      const hash = location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      if (params.has('id')) id.value = params.get('id');
+      if (params.has('digest')) digest.value = params.get('digest');
+    }
+    
+    // Prefill on load
+    prefillFromHash();
+    
     document.getElementById('btn').onclick = async () => {
       out.textContent = 'Checking...';
       try{
