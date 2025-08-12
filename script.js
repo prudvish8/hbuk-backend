@@ -27,17 +27,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderEntries(entries) {
         historyContainer.innerHTML = '';
-        for (const entry of entries.slice().reverse()) {
+        for (const entry of entries) {
             const entryDiv = document.createElement('div');
             entryDiv.className = 'entry';
+            
             const textP = document.createElement('p');
             textP.className = 'entry-text';
-            textP.innerHTML = marked.parse(entry.text);
+            textP.innerHTML = marked.parse(entry.content || entry.text || '');
+            
             const metaP = document.createElement('p');
             metaP.className = 'entry-meta';
-            const date = new Date(entry.timestamp);
+            const date = new Date(entry.createdAt || entry.timestamp);
             const locationString = entry.locationName || 'Location not available';
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
+            
+            // Add digest display
+            if (entry.digest) {
+                const digestP = document.createElement('p');
+                digestP.className = 'entry-digest';
+                digestP.style.fontSize = '0.8em';
+                digestP.style.color = '#666';
+                digestP.style.fontFamily = 'monospace';
+                digestP.textContent = `Digest: ${entry.digest.slice(0,16)}…`;
+                entryDiv.appendChild(digestP);
+            }
+            
             entryDiv.appendChild(textP);
             entryDiv.appendChild(metaP);
             historyContainer.appendChild(entryDiv);
@@ -95,18 +109,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (savedEntry) {
                 console.log('Backend response:', savedEntry);
 
-                // --- THIS IS THE CRITICAL FIX ---
-                // Instead of re-fetching the whole list, we will manually
-                // add the newly saved entry to our existing local list.
+                // Show the commit receipt with digest
+                showNotification(`Saved. Digest: ${savedEntry.digest.slice(0,12)}…`, 'success');
 
-                // 1. Get the current list of entries from the page's memory
-                // (We need to define 'entries' at the top level of our script)
-                entries.push(savedEntry.entry);
+                // Add the new entry to our local list
+                const newEntry = {
+                    content: entryData.content,
+                    createdAt: savedEntry.createdAt,
+                    digest: savedEntry.digest,
+                    signature: savedEntry.signature,
+                    location: entryData.location
+                };
+                entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc
 
-                // 2. Re-render the history with the updated list
+                // Re-render the history with the updated list
                 renderEntries(entries);
 
-                // 3. Clear the editor and the local draft
+                // Clear the editor and the local draft
                 localStorage.removeItem(localDraftKey);
                 editor.value = '';
             }
@@ -171,8 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 4. Build the COMPLETE data package.
             const newEntry = {
-                text,
-                timestamp,
+                content: text,
                 location,
                 locationName,
             };

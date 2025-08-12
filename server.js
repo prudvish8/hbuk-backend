@@ -13,6 +13,22 @@ import { Resend } from 'resend';
 import helmet from 'helmet';
 import crypto from 'crypto';
 
+// --- IMMUTABILITY FUNCTIONS ---
+function sha256Hex(s) {
+  return crypto.createHash('sha256').update(s, 'utf8').digest('hex');
+}
+
+function commitDigest({ userId, content, createdAt, location }) {
+  // canonical string for stable hashing
+  const payload = JSON.stringify({
+    userId: String(userId),
+    content,
+    createdAt: new Date(createdAt).toISOString(),
+    location: location || null
+  });
+  return sha256Hex(payload);
+}
+
 const app = express();
 
 // --- MIDDLEWARE ORDER ---
@@ -236,24 +252,47 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
   }
 });
 
-app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), async (req, res) => {
-    try {
-        const userId = req.user?.sub;
-        if (!userId) {
-            return res.status(401).json({ error: 'User ID not found in token' });
-        }
-        
-        const newEntry = {
-            ...req.body,
-            userId: new ObjectId(userId), // Ensure userId is stored as ObjectId
-            createdAt: new Date()
-        };
-        const result = await db.collection('entries').insertOne(newEntry);
-        res.status(201).json({ message: 'Entry saved successfully!', entry: newEntry, id: result.insertedId });
-    } catch (err) {
-        console.error('Commit error:', err);
-        res.status(500).json({ error: "Could not save to database." });
+app.post('/api/commit', authenticateToken, writeLimiter, async (req, res) => {
+  try {
+    const sub = req.user?.sub;
+    if (!sub) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { content, location } = req.body || {};
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: 'Content required' });
     }
+
+    const createdAt = new Date();
+    const doc = {
+      userId: new ObjectId(sub),
+      content,
+      location: location || null,
+      createdAt,
+    };
+
+    // immutable digest (client-visible)
+    const digest = commitDigest({ userId: sub, content, createdAt, location });
+
+    // optional server-side witness signature (can rotate HBUK_SIGNING_SECRET later)
+    const sig = crypto.createHmac('sha256', process.env.HBUK_SIGNING_SECRET || 'hbuk-dev')
+      .update(digest)
+      .digest('hex');
+
+    doc.digest = digest;
+    doc.signature = sig;
+
+    const result = await db.collection('entries').insertOne(doc);
+
+    res.status(201).json({
+      id: String(result.insertedId),
+      createdAt: createdAt.toISOString(),
+      digest,
+      signature: sig
+    });
+  } catch (e) {
+    console.error('commit error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 app.get('/api/entries', authenticateToken, async (req, res) => {
@@ -263,7 +302,11 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
             return res.status(401).json({ error: 'User ID not found in token' });
         }
         
-        const entries = await db.collection('entries').find({ userId: new ObjectId(userId) }).sort({ createdAt: -1 }).toArray();
+        const entries = await db.collection('entries')
+          .find({ userId: new ObjectId(userId) })
+          .project({ content: 1, createdAt: 1, digest: 1, signature: 1, location: 1 })
+          .sort({ createdAt: -1 })
+          .toArray();
         res.json({ entries });
     } catch (err) {
         console.error('Entries error:', err);
