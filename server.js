@@ -82,6 +82,7 @@ function debugHeaders(req, res, next) {
 // Robust CORS configuration
 const allowedOrigins = [
   'https://hbuk.xyz',
+  'https://www.hbuk.xyz',
   'http://localhost:5173',
   'http://localhost:3000',
 ];
@@ -178,9 +179,13 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/metrics', (req, res) => {
-  if (!METRICS_TOKEN || req.get('X-Metrics-Token') !== METRICS_TOKEN) {
-    return res.status(403).type('text/plain').send('forbidden');
-  }
+  const ok =
+    METRICS_TOKEN &&
+    (req.get('X-Metrics-Token') === METRICS_TOKEN ||
+     req.query.token === METRICS_TOKEN);
+
+  if (!ok) return res.status(403).type('text/plain').send('forbidden');
+
   res.type('text/plain').send(
     `hbuk_commits_total ${METRICS.commits_total}\n` +
     `hbuk_tombstones_total ${METRICS.tombstones_total}\n` +
@@ -598,6 +603,9 @@ app.get('/', (_req, res) => {
 
 // Global error handler - must be last
 app.use((err, req, res, _next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Entry too large (64KB max).' });
+  }
   console.error('Unhandled Error:', err);
   res.status(500).json({ error: err?.message || 'Internal error' });
 });
