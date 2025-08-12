@@ -18,6 +18,12 @@
   <div class="row"><label>Digest</label><br/><input id="digest" placeholder="sha256 hex"/></div>
   <div class="row"><button id="btn">Verify</button></div>
   <pre id="out"></pre>
+  
+  <div id="proof-section" style="display: none; margin-top: 20px;">
+    <h3>Proof of Inclusion</h3>
+    <button id="proofBtn">Get Proof</button>
+    <pre id="proofOut"></pre>
+  </div>
 
   <script type="module">
     import { apiRequest } from './api-utils.js';
@@ -31,6 +37,11 @@
       const params = new URLSearchParams(hash);
       if (params.has('id')) id.value = params.get('id');
       if (params.has('digest')) digest.value = params.get('digest');
+      
+      // Show proof section if we have both id and digest
+      if (params.has('id') && params.has('digest')) {
+        document.getElementById('proof-section').style.display = 'block';
+      }
     }
     
     // Prefill on load
@@ -43,6 +54,19 @@
         out.innerHTML = res.ok ? '<span class="ok">VALID ✅</span>' : '<span class="bad">TAMPERED ❌</span>';
       }catch(e){
         out.innerHTML = `<span class="bad">${e.message}</span>`;
+      }
+    };
+    
+    // Proof functionality
+    document.getElementById('proofBtn').onclick = async () => {
+      const proofOut = document.getElementById('proofOut');
+      proofOut.textContent = 'Getting proof...';
+      
+      try {
+        const res = await apiRequest(`/api/anchors/proof/${encodeURIComponent(id.value)}`, { method: 'GET' });
+        proofOut.textContent = JSON.stringify(res, null, 2);
+      } catch (e) {
+        proofOut.textContent = `Error: ${e.message}`;
       }
     };
   </script>

@@ -139,6 +139,14 @@ const writeLimiter = rateLimit({
   legacyHeaders: false
 });
 
+// Public endpoint rate limiting (DoS shield)
+const publicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,                // 120/minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // --- RESEND SDK INITIALIZATION ---
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -321,7 +329,7 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
 });
 
 // --- VERIFY: public, read-only tamper check by id + digest ---
-app.get('/api/verify/:id/:digest', async (req, res) => {
+app.get('/api/verify/:id/:digest', publicLimiter, async (req, res) => {
   try {
     const { id, digest } = req.params;
     if (!id || !digest) return res.status(400).json({ error: 'id and digest required' });
@@ -367,7 +375,7 @@ app.delete('/api/entries/:id', authenticateToken, async (req, res) => {
 });
 
 // All-user anchor of today's commits (UTC)
-app.get('/api/anchors/today', async (_req, res) => {
+app.get('/api/anchors/today', publicLimiter, async (_req, res) => {
   try {
     const start = new Date();
     start.setUTCHours(0,0,0,0);
@@ -381,6 +389,7 @@ app.get('/api/anchors/today', async (_req, res) => {
     const hashes = [];
     for await (const doc of cursor) hashes.push(doc.digest);
     const root = merkleRoot(hashes);
+    res.set('Cache-Control', 'public, max-age=60'); // 60s cache
     res.status(200).json({ date: start.toISOString().slice(0,10), count: hashes.length, root });
   } catch (e) {
     console.error('anchor error:', e);
@@ -459,22 +468,29 @@ app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
 });
 
 app.get('/api/entries', authenticateToken, async (req, res) => {
-    try {
-        const userId = req.user?.sub;
-        if (!userId) {
-            return res.status(401).json({ error: 'User ID not found in token' });
-        }
-        
-        const entries = await db.collection('entries')
-          .find({ userId: new ObjectId(userId) })
-          .project({ content: 1, createdAt: 1, digest: 1, signature: 1, location: 1 })
-          .sort({ createdAt: -1 })
-          .toArray();
-        res.json({ entries });
-    } catch (err) {
-        console.error('Entries error:', err);
-        res.status(500).json({ error: "Could not read from database." });
-    }
+  try {
+    const userId = new ObjectId(req.user.sub);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+    const cursorId = req.query.cursor ? new ObjectId(req.query.cursor) : null;
+
+    const query = { userId };
+    if (cursorId) query._id = { $lt: cursorId };
+
+    const docs = await db.collection('entries')
+      .find(query, { projection: { content: 1, createdAt: 1, digest: 1, signature: 1, sigAlg: 1, sigKid: 1, type: 1 } })
+      .sort({ _id: -1 })
+      .limit(limit + 1)
+      .toArray();
+
+    const hasMore = docs.length > limit;
+    const items = hasMore ? docs.slice(0, limit) : docs;
+    const nextCursor = hasMore ? String(items[items.length - 1]._id) : null;
+
+    res.json({ entries: items, nextCursor });
+  } catch (e) {
+    console.error('entries error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // --- SERVER STARTUP ---

@@ -130,6 +130,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- DOWNLOAD RECEIPT FUNCTION ---
+    function downloadReceipt(entry) {
+        const receipt = {
+            id: entry.id,
+            createdAt: entry.createdAt,
+            digest: entry.digest,
+            signature: entry.signature,
+            sigAlg: entry.sigAlg,
+            sigKid: entry.sigKid,
+        };
+        const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hbuk-receipt-${entry.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
     // --- REFACTORED: The main entry creation logic ---
     async function createEntry(entryData) {
         try {
@@ -144,6 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Show the commit receipt with digest
                 showNotification(`Saved. Digest: ${savedEntry.digest.slice(0,12)}…`, 'success');
+
+                // Download receipt automatically
+                downloadReceipt(savedEntry);
 
                 // Add the new entry to our local list
                 const newEntry = {
