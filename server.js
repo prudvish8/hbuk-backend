@@ -74,6 +74,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 app.use(debugHeaders);
 
+// Version header for production debugging
+app.use((req, res, next) => {
+  res.setHeader('X-HBUK-Version', process.env.COMMIT_SHA || 'dev');
+  next();
+});
+
 // Rate limiting
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use(limiter);
@@ -87,6 +93,14 @@ const authLimiter = rateLimit({
 });
 app.use('/api/login', authLimiter);
 app.use('/api/register', authLimiter);
+
+// Content write rate limiting (defense-in-depth)
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,             // 30 writes/min per IP
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // --- RESEND SDK INITIALIZATION ---
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -123,18 +137,11 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', validate(registerSchema), async (req, res) => {
   try {
     const { email, password } = req.body || {};
     
-    // Early input validation
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
-    
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
-    }
+
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -192,14 +199,11 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body || {};
     
-    // Early input validation
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
+
 
     const users = db.collection('users');
     const user = await users.findOne({ email });
@@ -232,7 +236,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/commit', authenticateToken, validate(entrySchema), async (req, res) => {
+app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), async (req, res) => {
     try {
         const userId = req.user?.sub;
         if (!userId) {
@@ -307,6 +311,11 @@ async function boot() {
 }
 
 boot();
+
+// Friendly root route
+app.get('/', (_req, res) => {
+  res.status(200).json({ ok: true, name: 'hbuk-backend', ts: new Date().toISOString() });
+});
 
 // Global error handler - must be last
 app.use((err, req, res, _next) => {
