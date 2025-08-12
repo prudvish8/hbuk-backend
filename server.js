@@ -37,6 +37,7 @@ const SIG_KID = process.env.HBUK_SIGNING_KID || 'v1';
 
 // Metrics collection (Prometheus-style)
 let METRICS = { commits_total: 0, tombstones_total: 0, verify_total: 0, anchors_today_hits: 0 };
+const METRICS_TOKEN = process.env.HBUK_METRICS_TOKEN || '';
 
 function merkleRoot(hashes){
   if (!hashes || hashes.length === 0) return null;
@@ -108,7 +109,7 @@ app.use(cors({
 app.set('trust proxy', 1); // Render behind proxy
 app.use(helmet({ contentSecurityPolicy: false })); // Keep CSP disabled for now
 app.use(helmet.hsts({ maxAge: 15552000 })); // 180 days HTTPS-only hint
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '64kb' })); // pick a sensible limit for notes
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging and debugging
@@ -176,7 +177,10 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true, ts: new Date().toISOString() });
 });
 
-app.get('/metrics', (_req, res) => {
+app.get('/metrics', (req, res) => {
+  if (!METRICS_TOKEN || req.get('X-Metrics-Token') !== METRICS_TOKEN) {
+    return res.status(403).type('text/plain').send('forbidden');
+  }
   res.type('text/plain').send(
     `hbuk_commits_total ${METRICS.commits_total}\n` +
     `hbuk_tombstones_total ${METRICS.tombstones_total}\n` +
