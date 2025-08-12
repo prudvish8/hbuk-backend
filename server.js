@@ -60,7 +60,7 @@ app.post('/api/register', validate(registerSchema), async (req, res) => {
         const usersCollection = db.collection('users');
         const existingUser = await usersCollection.findOne({ email });
         if (existingUser) {
-            return res.status(400).json({ message: "User already exists." });
+            return res.status(409).json({ message: "User already exists. Please log in." });
         }
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);

@@ -26,7 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error('Registration error:', error);
-                showNotification('Registration failed. Please check your connection and try again.', 'error');
+                // Display the specific error message from the server
+                const errorMessage = error.message || 'Registration failed. Please check your connection and try again.';
+                showNotification(errorMessage, 'error');
             } finally {
                 // Re-enable the button and restore original text
                 submitButton.disabled = false;
@@ -61,7 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                showNotification('Login failed. Please check your connection and try again.', 'error');
+                // Display the specific error message from the server
+                const errorMessage = error.message || 'Login failed. Please check your connection and try again.';
+                showNotification(errorMessage, 'error');
             } finally {
                 // Re-enable the button and restore original text
                 submitButton.disabled = false;
