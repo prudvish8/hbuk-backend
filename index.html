@@ -14,12 +14,13 @@
     </style>
 </head>
 <body>
-    <header class="appbar">
+    <header class="appbar chrome">
         <div class="appbar__inner">
             <div class="brand">hbuk</div>
             <div style="display:flex; gap:8px; align-items:center">
                 <button id="exportAllBtn" class="btn secondary">📥 Export All</button>
                 <label class="meta-toggle"><input type="checkbox" id="autoReceiptsChk"> Auto receipts</label>
+                <button id="focusToggle" class="btn secondary" title="Focus mode (F)">Focus</button>
                 <a id="logoutLink" href="#" style="color:#334155">Logout</a>
             </div>
         </div>
@@ -27,12 +28,20 @@
 
     <main class="container">
         <section class="composer">
-            <textarea id="editor" placeholder="Begin…"></textarea>
-            <div class="composer__actions">
+            <div class="editor-wrap" style="position:relative;">
+                <textarea id="editor" placeholder="Begin…"></textarea>
+                <div class="word-count" id="wordCount">0 words</div>
+            </div>
+            <div class="composer__actions chrome">
                 <span id="notif" class="badge" aria-live="polite"></span>
                 <button id="commitBtn" class="btn">Commit ↵</button>
             </div>
         </section>
+
+        <!-- Floating commit button for focus mode -->
+        <div class="commit-bar" id="floatingCommit" style="display:none;">
+            <button id="floatingCommitBtn" class="btn">Commit ↵</button>
+        </div>
 
         <section id="entries"></section>
     </main>

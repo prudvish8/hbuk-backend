@@ -12,14 +12,40 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auto-receipts toggle (default OFF - no surprise downloads)
     const KEY = 'hbuk:autoReceipts';
-    autoReceiptsChk.checked = localStorage.getItem(KEY) === '1';
-    autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, autoReceiptsChk.checked ? '1' : '0'));
+    autoReceiptsChk.checked = JSON.parse(localStorage.getItem(KEY) ?? 'false');
+    autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, JSON.stringify(autoReceiptsChk.checked)));
     
-    // Focus editor and support Cmd/Ctrl+Enter to commit
-    editor?.focus();
-    editor?.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') commitButton?.click();
+    // Focus mode toggle
+    const focusToggle = document.getElementById('focusToggle');
+    const floatingCommit = document.getElementById('floatingCommit');
+    const floatingCommitBtn = document.getElementById('floatingCommitBtn');
+    
+    focusToggle?.addEventListener('click', () => {
+        document.body.classList.toggle('focus');
+        const isFocus = document.body.classList.contains('focus');
+        floatingCommit.style.display = isFocus ? 'block' : 'none';
+        focusToggle.textContent = isFocus ? 'Show' : 'Focus';
+        focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
     });
+    
+    // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
+    document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            const activeBtn = document.body.classList.contains('focus') ? floatingCommitBtn : commitButton;
+            activeBtn?.click();
+        }
+        if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
+            focusToggle?.click();
+        }
+    });
+    
+    // Wire up floating commit button
+    if (floatingCommitBtn) {
+        floatingCommitBtn.onclick = () => commitButton?.click();
+    }
+    
+    // Focus editor
+    editor?.focus();
     
     // Global entries array to store all entries
     let entries = [];
@@ -81,15 +107,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Add digest display with copy and verify actions
             if (entry.digest) {
-                const short = entry.digest.slice(0, 12);
+                const short = entry.digest.slice(0, 10);
                 const verifyUrl = `verify.html#id=${encodeURIComponent(entry._id)}&digest=${encodeURIComponent(entry.digest)}`;
                 
                 const badgeDiv = document.createElement('div');
-                badgeDiv.className = 'badge';
+                badgeDiv.className = 'badge entry-meta';
                 badgeDiv.innerHTML = `
-                    digest: <code class="dgst">${short}…</code>
-                    <button class="btn secondary" data-copy>Copy</button>
-                    <a class="btn secondary" href="${verifyUrl}" target="_blank">Verify</a>
+                    <span class="digest-chip" title="A cryptographic fingerprint of this entry">digest: ${short}…</span>
+                    <button class="btn secondary" data-copy title="Copy full digest">Copy</button>
+                    <a class="btn secondary" href="${verifyUrl}" target="_blank" title="Open a public page to check this digest matches the text">Verify</a>
                 `;
                 
                 entryDiv.appendChild(badgeDiv);
@@ -103,8 +129,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Wire up copy buttons after rendering
         document.querySelectorAll('[data-copy]').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const digestElement = btn.parentElement.querySelector('.dgst');
-                const d = digestElement?.textContent?.replace('…', '') || '';
+                const digestElement = btn.parentElement.querySelector('.digest-chip');
+                const d = digestElement?.textContent?.replace('digest: ', '').replace('…', '') || '';
                 try { 
                     await navigator.clipboard.writeText(d); 
                     showNotification('Digest copied', 'success');
@@ -188,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Backend response:', savedEntry);
 
                 // Show the commit receipt with digest
-                showNotification(`Saved. Digest: ${savedEntry.digest.slice(0,12)}…`, 'success');
+                showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
 
                 // Download receipt only if auto-receipts is enabled
                 const autoReceiptsOn = localStorage.getItem('hbuk:autoReceipts') === '1';
@@ -226,9 +252,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT LISTENERS ---
 
-    // Auto-save local draft
+    // Auto-save local draft and update word count
+    const wordCount = document.getElementById('wordCount');
     editor.addEventListener('input', () => {
         localStorage.setItem(localDraftKey, editor.value);
+        
+        // Update word count
+        if (wordCount) {
+            const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
+            wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+        }
     });
 
 
@@ -375,6 +408,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (localDraft) {
             editor.value = localDraft;
         }
+        
+        // Initialize word count
+        if (wordCount) {
+            const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
+            wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+        }
+        
         editor.focus();
     }
 
