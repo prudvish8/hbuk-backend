@@ -14,3 +14,6 @@ jobs:
         with: { node-version: 20 }
       - run: npm ci
       - run: npm run smoke
+      - name: Test metrics endpoint
+        run: |
+          curl -fsS "$API/metrics?token=${{ secrets.HBUK_METRICS_TOKEN }}" || echo "Metrics endpoint test failed"

@@ -229,9 +229,11 @@ app.post('/api/register', validate(registerSchema), async (req, res) => {
       createdAt: new Date()
     });
 
-    // Only send welcome email after successful insert
-    try {
-      await resend.emails.send({
+    // Only send welcome email after successful insert (skip for smoke tests and test domains)
+    const skipEmail = req.headers['x-hbuk-smoke'] === '1' || email.endsWith('@hbuk.dev');
+    if (!skipEmail) {
+      try {
+        await resend.emails.send({
         from: 'Hbuk <welcome@hbuk.xyz>',
         to: email,
         subject: 'Welcome to Hbuk: Your Digital History Begins',
@@ -253,11 +255,14 @@ app.post('/api/register', validate(registerSchema), async (req, res) => {
             <p>— The Hbuk Team</p>
           </div>
         `
-      });
-      console.log(`✅ Welcome email sent to ${email}`);
-    } catch (emailError) {
-      console.error('⚠️ Welcome email failed:', emailError);
-      // Don't block registration if email fails
+        });
+        console.log(`✅ Welcome email sent to ${email}`);
+      } catch (emailError) {
+        console.error('⚠️ Welcome email failed:', emailError);
+        // Don't block registration if email fails
+      }
+    } else {
+      console.log(`ℹ️  Welcome email skipped for ${email} (smoke test or test domain)`);
     }
 
     return res.status(201).json({ 
