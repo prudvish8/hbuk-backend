@@ -13,7 +13,7 @@
     "test-maintenance": "node scripts/test-maintenance.mjs",
     "test-metrics": "node scripts/test-metrics.mjs",
     "import:check": "node scripts/smoke-import.mjs",
-    "prepare": "husky"
+    "prepare": "if [ \"$NODE_ENV\" = \"production\" ]; then echo 'Skipping husky in production'; else command -v husky >/dev/null 2>&1 && husky || echo 'husky not installed, skipping'; fi"
   },
   "keywords": [],
   "author": "",
