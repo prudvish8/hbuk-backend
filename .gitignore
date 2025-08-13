@@ -61,4 +61,15 @@ jspm_packages/
 ehthumbs.db
 Thumbs.db 
 
+# CRITICAL: Database and sensitive files
+database.json
 import-genesis.js
+auth.js
+
+# Duplicate/backup files
+style-2.css
+package-lock-2.json
+
+# Temporary files
+*.tmp
+*.temp
