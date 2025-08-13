@@ -20,5 +20,7 @@ jobs:
       - name: Node
         uses: actions/setup-node@v4
         with: { node-version: '22' }
+      - name: Install dependencies
+        run: npm ci --omit=optional --no-audit --no-fund
       - name: Import sanity
         run: npm run import:check
