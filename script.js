@@ -189,7 +189,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     createdAt: savedEntry.createdAt,
                     digest: savedEntry.digest,
                     signature: savedEntry.signature,
-                    location: entryData.location
+                    // Include location data if it exists
+                    ...(entryData.latitude && {
+                        latitude: entryData.latitude,
+                        longitude: entryData.longitude,
+                        locationName: entryData.locationName
+                    })
                 };
                 entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc
 
@@ -259,11 +264,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 locationName = "Location not available";
             }
 
-            // 4. Build the COMPLETE data package.
+            // 4. Build the data package with only the fields we want to store.
             const newEntry = {
                 content: text,
-                location,
-                locationName,
+                // Only include location data if it's available and valid
+                ...(location.latitude !== 'unavailable' && location.latitude !== 'not supported' && {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    locationName
+                })
             };
 
             // 5. NOW send the complete package to the createEntry function.
