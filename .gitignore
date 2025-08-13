@@ -64,7 +64,6 @@ Thumbs.db
 # CRITICAL: Database and sensitive files
 database.json
 import-genesis.js
-auth.js
 
 # Duplicate/backup files
 style-2.css
