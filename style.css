@@ -31,15 +31,17 @@ body{
 /* Layout */
 .container{
   max-width:var(--maxw);
-  margin:18px auto; padding:0 var(--pad) 48px;
+  margin:12px auto; padding:0 var(--pad) 48px;
 }
 
 /* Editor */
 #editor{
-  width:100%; min-height:280px; resize:vertical;
+  width:100%; min-height:220px; resize:vertical;
   border:1px solid var(--border); border-radius:var(--radius);
   padding:14px; outline:none; background:#fff;
   box-shadow:0 1px 0 #00000005;
+  font-size: 18px;
+  line-height: 1.6;
 }
 #editor::placeholder{color:#9ca3af}
 

@@ -375,6 +375,12 @@ app.get('/api/verify/:id/:digest', publicLimiter, async (req, res) => {
     const { id, digest } = req.params;
     if (!id || !digest) return res.status(400).json({ error: 'id and digest required' });
 
+    // Validate ID and digest format
+    const isHex = (s, n) => typeof s === 'string' && new RegExp(`^[a-f0-9]{${n}}$`).test(s);
+    if (!isHex(id, 24) || !isHex(digest, 64)) {
+      return res.status(400).json({ ok: false, error: 'invalid id or digest format' });
+    }
+
     const entry = await db.collection('entries').findOne({ _id: new ObjectId(id) }, { projection: { digest: 1, signature: 1 }});
     if (!entry) return res.status(404).json({ error: 'Not found' });
 
@@ -495,6 +501,12 @@ app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
     const id = req.params.id;
     const sub = req.user?.sub;
     if (!id || !sub) return res.status(400).json({ error: 'Bad request' });
+
+    // Validate ID format
+    const isHex = (s, n) => typeof s === 'string' && new RegExp(`^[a-f0-9]{${n}}$`).test(s);
+    if (!isHex(id, 24)) {
+      return res.status(400).json({ error: 'invalid id format' });
+    }
 
     const entry = await db.collection('entries').findOne(
       { _id: new ObjectId(id), userId: new ObjectId(sub), digest: { $exists: true } },

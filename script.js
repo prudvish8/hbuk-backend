@@ -108,14 +108,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add digest display with copy and verify actions
             if (entry.digest) {
                 const short = entry.digest.slice(0, 10);
-                const verifyUrl = `verify.html#id=${encodeURIComponent(entry._id)}&digest=${encodeURIComponent(entry.digest)}`;
+                // Helper: normalize entry ID (handle both _id and id)
+                const eid = (entry && (entry._id || entry.id)) || null;
+                const verifyUrl = eid ? `verify.html#id=${encodeURIComponent(eid)}&digest=${encodeURIComponent(entry.digest)}` : '#';
                 
                 const badgeDiv = document.createElement('div');
                 badgeDiv.className = 'badge entry-meta';
                 badgeDiv.innerHTML = `
                     <span class="digest-chip" title="A cryptographic fingerprint of this entry">digest: ${short}…</span>
                     <button class="btn secondary" data-copy title="Copy full digest">Copy</button>
-                    <a class="btn secondary" href="${verifyUrl}" target="_blank" title="Open a public page to check this digest matches the text">Verify</a>
+                    <a class="btn secondary" href="${verifyUrl}" target="_blank" title="Open a public page to check this digest matches the text" ${!eid ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>Verify</a>
                 `;
                 
                 entryDiv.appendChild(badgeDiv);
@@ -224,6 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add the new entry to our local list
                 const newEntry = {
+                    _id: savedEntry.id,         // alias so render code can use either
+                    id: savedEntry.id,
                     content: entryData.content,
                     createdAt: savedEntry.createdAt,
                     digest: savedEntry.digest,

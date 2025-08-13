@@ -35,12 +35,24 @@
     function prefillFromHash() {
       const hash = location.hash.substring(1);
       const params = new URLSearchParams(hash);
-      if (params.has('id')) id.value = params.get('id');
-      if (params.has('digest')) digest.value = params.get('digest');
+      const idParam = params.get('id') || '';
+      const digestParam = params.get('digest') || '';
+      
+      id.value = idParam;
+      digest.value = digestParam;
       
       // Show proof section if we have both id and digest
-      if (params.has('id') && params.has('digest')) {
+      if (idParam && digestParam) {
         document.getElementById('proof-section').style.display = 'block';
+      }
+      
+      // Optional sanity checks before calling the API:
+      const isHex = (s, n) => new RegExp(`^[a-f0-9]{${n}}$`).test(s);
+      if (idParam && !isHex(idParam, 24)) {
+        out.innerHTML = '<span class="bad">Warning: Enter a valid 24-char entry ID.</span>';
+      }
+      if (digestParam && !isHex(digestParam, 64)) {
+        out.innerHTML = '<span class="bad">Warning: Enter a valid 64-char digest.</span>';
       }
     }
     
