@@ -14,21 +14,28 @@
     </style>
 </head>
 <body>
-    <!-- Notification area -->
-    <div id="notif" class="notif" aria-live="polite"></div>
-    
-    <div id="app-container">
-        <div class="header">
-            <h1>hbuk</h1>
-            <a href="login.html" class="login-link">Login</a>
+    <header class="appbar">
+        <div class="appbar__inner">
+            <div class="brand">hbuk</div>
+            <div style="display:flex; gap:8px; align-items:center">
+                <button id="exportAllBtn" class="btn secondary">📥 Export All</button>
+                <label class="meta-toggle"><input type="checkbox" id="autoReceiptsChk"> Auto receipts</label>
+                <a id="logoutLink" href="#" style="color:#334155">Logout</a>
+            </div>
         </div>
-        
-        <textarea id="editor" placeholder="Begin..."></textarea>
-        <button id="commit-button" title="Shortcut: ⌘ + Enter">Commit</button>
-        
-        <!-- NEW: This is where our history will be displayed -->
-        <div id="history-container"></div>
-    </div>
+    </header>
+
+    <main class="container">
+        <section class="composer">
+            <textarea id="editor" placeholder="Begin…"></textarea>
+            <div class="composer__actions">
+                <span id="notif" class="badge" aria-live="polite"></span>
+                <button id="commitBtn" class="btn">Commit ↵</button>
+            </div>
+        </section>
+
+        <section id="entries"></section>
+    </main>
 
     <!-- Optional: Override API base for production -->
     <script>window.API_BASE = 'https://hbuk-backend-hvow.onrender.com';</script>

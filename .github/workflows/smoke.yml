@@ -15,6 +15,9 @@ jobs:
       - run: npm ci
       - run: npm run smoke
       - name: Register test user (skip emails)
+        env:
+          EMAIL: "u${{ github.run_number }}@hbuk.dev"
+          PASS: "test123"
         run: |
           curl -sS -X POST "$API/api/register" \
             -H 'Content-Type: application/json' \
@@ -22,6 +25,7 @@ jobs:
             -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
 
       - name: Metrics (token via header; query fallback)
+        if: secrets.HBUK_METRICS_TOKEN != ''
         env:
           METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
         run: |

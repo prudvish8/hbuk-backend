@@ -10,7 +10,8 @@
     "health": "node scripts/healthcheck.mjs",
     "sanity": "node scripts/healthcheck.mjs && node scripts/smoke.mjs",
     "verify-metrics": "node scripts/verify-metrics.mjs",
-    "test-maintenance": "node scripts/test-maintenance.mjs"
+    "test-maintenance": "node scripts/test-maintenance.mjs",
+    "test-metrics": "node scripts/test-metrics.mjs"
   },
   "keywords": [],
   "author": "",

@@ -5,9 +5,21 @@ import { showNotification } from './ui-notify.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
-    const commitButton = document.getElementById('commit-button');
-    const historyContainer = document.getElementById('history-container');
+    const commitButton = document.getElementById('commitBtn');
+    const historyContainer = document.getElementById('entries');
+    const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';
+    
+    // Auto-receipts toggle (default OFF - no surprise downloads)
+    const KEY = 'hbuk:autoReceipts';
+    autoReceiptsChk.checked = localStorage.getItem(KEY) === '1';
+    autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, autoReceiptsChk.checked ? '1' : '0'));
+    
+    // Focus editor and support Cmd/Ctrl+Enter to commit
+    editor?.focus();
+    editor?.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') commitButton?.click();
+    });
     
     // Global entries array to store all entries
     let entries = [];
@@ -57,12 +69,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             entryDiv.className = 'entry';
             
-            const textP = document.createElement('p');
-            textP.className = 'entry-text';
+            const textP = document.createElement('div');
+            textP.className = 'content';
             textP.innerHTML = marked.parse(entry.content || entry.text || '');
             
-            const metaP = document.createElement('p');
-            metaP.className = 'entry-meta';
+            const metaP = document.createElement('div');
+            metaP.className = 'badge';
             const date = new Date(entry.createdAt || entry.timestamp);
             const locationString = entry.locationName || 'Location not available';
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
@@ -72,18 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const short = entry.digest.slice(0, 12);
                 const verifyUrl = `verify.html#id=${encodeURIComponent(entry._id)}&digest=${encodeURIComponent(entry.digest)}`;
                 
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'entry-actions';
-                actionsDiv.style.marginTop = '8px';
-                actionsDiv.style.fontSize = '0.8em';
-                
-                actionsDiv.innerHTML = `
-                    <small class="muted">digest: <code>${short}…</code></small>
-                    <button class="copy-digest" data-digest="${entry.digest}" style="margin-left: 8px; padding: 2px 6px; font-size: 0.7em;">Copy</button>
-                    <a href="${verifyUrl}" style="margin-left: 8px; color: #0066cc; text-decoration: none;">Verify</a>
+                const badgeDiv = document.createElement('div');
+                badgeDiv.className = 'badge';
+                badgeDiv.innerHTML = `
+                    digest: <code class="dgst">${short}…</code>
+                    <button class="btn secondary" data-copy>Copy</button>
+                    <a class="btn secondary" href="${verifyUrl}" target="_blank">Verify</a>
                 `;
                 
-                entryDiv.appendChild(actionsDiv);
+                entryDiv.appendChild(badgeDiv);
             }
             
             entryDiv.appendChild(textP);
@@ -92,12 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Wire up copy buttons after rendering
-        document.querySelectorAll('.copy-digest').forEach(btn => {
+        document.querySelectorAll('[data-copy]').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const d = btn.getAttribute('data-digest') || '';
+                const digestElement = btn.parentElement.querySelector('.dgst');
+                const d = digestElement?.textContent?.replace('…', '') || '';
                 try { 
                     await navigator.clipboard.writeText(d); 
-                    showNotification('Digest copied', 'success'); 
+                    showNotification('Digest copied', 'success');
                 } catch { 
                     showNotification('Copy failed', 'error'); 
                 }
@@ -180,8 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Show the commit receipt with digest
                 showNotification(`Saved. Digest: ${savedEntry.digest.slice(0,12)}…`, 'success');
 
-                // Download receipt automatically
-                downloadReceipt(savedEntry);
+                // Download receipt only if auto-receipts is enabled
+                const autoReceiptsOn = localStorage.getItem('hbuk:autoReceipts') === '1';
+                if (autoReceiptsOn) {
+                    downloadReceipt(savedEntry);
+                }
 
                 // Add the new entry to our local list
                 const newEntry = {
@@ -218,13 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(localDraftKey, editor.value);
     });
 
-    // Keyboard shortcut: Cmd+Enter or Ctrl+Enter to commit
-    editor.addEventListener('keydown', (event) => {
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-            event.preventDefault();
-            commitButton.click();
-        }
-    });
+
 
     // --- REFACTORED: The commit button listener ---
     commitButton.addEventListener('click', async () => {
@@ -318,29 +325,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Add export button to the page
-    const exportButton = document.createElement('button');
-    exportButton.textContent = '📥 Export All';
-    exportButton.className = 'export-button';
-    exportButton.style.cssText = 'margin-left: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;';
-    exportButton.onclick = exportAllEntries;
-    
-    // Insert export button after commit button
-    if (commitButton && commitButton.parentNode) {
-        commitButton.parentNode.insertBefore(exportButton, commitButton.nextSibling);
+    // Wire up export button in header
+    const exportAllBtn = document.getElementById('exportAllBtn');
+    if (exportAllBtn) {
+        exportAllBtn.onclick = exportAllEntries;
     }
 
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {
         const token = localStorage.getItem('hbuk_token');
-        const loginLink = document.querySelector('.login-link');
+        const logoutLink = document.getElementById('logoutLink');
         
         if (token) {
             // User is logged in
-            if (loginLink) {
-                loginLink.textContent = 'Logout';
-                loginLink.href = '#';
-                loginLink.onclick = (e) => {
+            if (logoutLink) {
+                logoutLink.textContent = 'Logout';
+                logoutLink.href = '#';
+                logoutLink.onclick = (e) => {
                     e.preventDefault();
                     localStorage.removeItem('hbuk_token');
                     showNotification('Logged out successfully.', 'success');
@@ -349,10 +350,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // User is not logged in
-            if (loginLink) {
-                loginLink.textContent = 'Login';
-                loginLink.href = 'login.html';
-                loginLink.onclick = null;
+            if (logoutLink) {
+                logoutLink.textContent = 'Login';
+                logoutLink.href = 'login.html';
+                logoutLink.onclick = null;
             }
         }
     }
