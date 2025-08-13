@@ -367,14 +367,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {
         const token = localStorage.getItem('hbuk_token');
-        const logoutLink = document.getElementById('logoutLink');
+        const logoutBtn = document.getElementById('logoutBtn');
         
         if (token) {
             // User is logged in
-            if (logoutLink) {
-                logoutLink.textContent = 'Logout';
-                logoutLink.href = '#';
-                logoutLink.onclick = (e) => {
+            if (logoutBtn) {
+                logoutBtn.textContent = 'Logout';
+                logoutBtn.onclick = (e) => {
                     e.preventDefault();
                     localStorage.removeItem('hbuk_token');
                     showNotification('Logged out successfully.', 'success');
@@ -383,10 +382,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // User is not logged in
-            if (logoutLink) {
-                logoutLink.textContent = 'Login';
-                logoutLink.href = 'login.html';
-                logoutLink.onclick = null;
+            if (logoutBtn) {
+                logoutBtn.textContent = 'Login';
+                logoutBtn.onclick = () => {
+                    window.location.href = 'login.html';
+                };
             }
         }
     }
