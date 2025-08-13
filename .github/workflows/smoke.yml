@@ -14,6 +14,16 @@ jobs:
         with: { node-version: 20 }
       - run: npm ci
       - run: npm run smoke
-      - name: Test metrics endpoint
+      - name: Register test user (skip emails)
         run: |
-          curl -fsS "$API/metrics?token=${{ secrets.HBUK_METRICS_TOKEN }}" || echo "Metrics endpoint test failed"
+          curl -sS -X POST "$API/api/register" \
+            -H 'Content-Type: application/json' \
+            -H 'X-HBUK-SMOKE: 1' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
+
+      - name: Metrics (token via header; query fallback)
+        env:
+          METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
+        run: |
+          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
+          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
