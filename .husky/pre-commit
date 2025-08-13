@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+[ -f auth.js ] || { echo "❌ auth.js missing"; exit 1; }
+[ -f server.js ] || { echo "❌ server.js missing"; exit 1; }
+[ -f validation.js ] || { echo "❌ validation.js missing"; exit 1; }
+echo "✅ required files present"

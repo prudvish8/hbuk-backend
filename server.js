@@ -2,6 +2,11 @@
 
 import 'dotenv/config';
 import express from 'express';
+
+// Environment validation warnings
+if (!process.env.JWT_SECRET && !process.env.HBUK_JWT_SECRET) {
+  console.warn('[WARN] JWT secret not configured (JWT_SECRET or HBUK_JWT_SECRET). Auth will fail.');
+}
 import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import bcrypt from 'bcryptjs';

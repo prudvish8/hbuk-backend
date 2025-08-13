@@ -11,7 +11,9 @@
     "sanity": "node scripts/healthcheck.mjs && node scripts/smoke.mjs",
     "verify-metrics": "node scripts/verify-metrics.mjs",
     "test-maintenance": "node scripts/test-maintenance.mjs",
-    "test-metrics": "node scripts/test-metrics.mjs"
+    "test-metrics": "node scripts/test-metrics.mjs",
+    "import:check": "node scripts/smoke-import.mjs",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -29,5 +31,8 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.18.0",
     "resend": "^6.0.1"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }
