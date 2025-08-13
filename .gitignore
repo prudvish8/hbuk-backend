@@ -12,63 +12,58 @@ yarn-error.log*
 .env.production.local
 
 # Logs
-logs
+logs/
 *.log
 
 # Runtime data
-pids
+pids/
 *.pid
-*.seed
 *.pid.lock
+*.seed
 
-# Coverage directory used by tools like istanbul
+# Coverage
 coverage/
+.nyc_output/
 
-# nyc test coverage
-.nyc_output
+# Optional npm cache
+.npm/
 
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional REPL history
+# REPL history
 .node_repl_history
 
-# Output of 'npm pack'
+# npm pack output
 *.tgz
 
-# Yarn Integrity file
+# Yarn integrity
 .yarn-integrity
 
-# dotenv environment variables file
-.env
-
-# IDE files
+# IDE / editor
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS generated files
+# OS files
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
 
-# CRITICAL: Database and sensitive files
+# CRITICAL: never commit local DB or import scripts
 database.json
 import-genesis.js
 
-# Duplicate/backup files
+# Duplicates / backups you don't want tracked
 style-2.css
 package-lock-2.json
 
-# Temporary files
+# Temp files
 *.tmp
 *.temp
+
+# (Optional) build outputs if you start emitting them
+dist/
+build/
