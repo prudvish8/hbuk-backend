@@ -24,10 +24,19 @@ jobs:
             -H 'X-HBUK-SMOKE: 1' \
             -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
 
+      # ✅ ONLY run this step when a metrics token is configured
       - name: Metrics (token via header; query fallback)
-        if: secrets.HBUK_METRICS_TOKEN != ''
+        if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
         env:
+          API: https://hbuk-backend-hvow.onrender.com
           METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
         run: |
-          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
-          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+          # header auth
+          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null
+          # query fallback (should also 200)
+          curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+
+      # Optional: make it explicit when there's no token
+      - name: Metrics (skipped: no token configured)
+        if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
+        run: echo "Skipping metrics check (no HBUK_METRICS_TOKEN set in repo secrets)."
