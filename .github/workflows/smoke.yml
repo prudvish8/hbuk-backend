@@ -25,7 +25,6 @@ jobs:
         run: |
           curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null
           curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
-
       - name: Metrics (skipped: no token configured)
         if: ${{ env.METRICS_TOKEN == '' }}
         run: echo "Skipping metrics check (no HBUK_METRICS_TOKEN set)."
