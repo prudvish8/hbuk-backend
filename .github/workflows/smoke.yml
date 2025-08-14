@@ -1,32 +1,25 @@
 name: Smoke (prod)
-
 on:
   push:
     branches: [ main ]
   workflow_dispatch: {}
-
 env:
   API: https://hbuk-backend-hvow.onrender.com
   METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
-
 jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Install
         run: npm ci --prefer-offline --no-audit --no-fund
-
       - name: Sanity script
         run: npm run sanity
-
       - name: Metrics (token via header; query fallback)
         if: ${{ env.METRICS_TOKEN != '' }}
         run: |
