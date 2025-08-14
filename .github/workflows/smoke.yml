@@ -20,11 +20,11 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
       - name: Sanity script
         run: npm run sanity
-      - name: Metrics (token via header; query fallback)
-        if: ${{ env.METRICS_TOKEN != '' }}
+      - name: Metrics
         run: |
-          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null
-          curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
-      - name: Metrics (skipped: no token configured)
-        if: ${{ env.METRICS_TOKEN == '' }}
-        run: echo "Skipping metrics check (no HBUK_METRICS_TOKEN set)."
+          if [ -n "$METRICS_TOKEN" ]; then
+            curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null
+            curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+          else
+            echo "Skipping metrics check (no HBUK_METRICS_TOKEN set)."
+          fi
