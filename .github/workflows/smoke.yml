@@ -1,36 +1,31 @@
 name: Smoke (prod)
+
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch: {}
+
 env:
   API: https://hbuk-backend-hvow.onrender.com
+  METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    env:
-      # Put the secret into env once, then branch on env.*
-      METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
 
-      # (Optional but fine)
-      - run: npm ci --omit=optional --no-audit --no-fund
+      - name: Install
+        run: npm ci --prefer-offline --no-audit --no-fund
 
-      - run: npm run smoke
-
-      - name: Register test user (skip emails)
-        env:
-          EMAIL: "u${{ github.run_number }}@hbuk.dev"
-          PASS: "test123"
-        run: |
-          curl -sS -X POST "$API/api/register" \
-            -H 'Content-Type: application/json' \
-            -H 'X-HBUK-SMOKE: 1' \
-            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
+      - name: Sanity script
+        run: npm run sanity
 
       - name: Metrics (token via header; query fallback)
         if: ${{ env.METRICS_TOKEN != '' }}
