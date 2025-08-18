@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Configuration - CHANGE THIS to your staging backend
-API="https://hbuk-backend-hvow.onrender.com"   # ← change to staging when ready
+# Configuration - using current backend with staging database
+API="https://hbuk-backend-hvow.onrender.com"   # ← your current backend
 EMAIL="u$RANDOM@hbuk.dev"
 PASS="test123"
 

@@ -451,7 +451,21 @@ app.get('/api/export', authenticateToken, async (req, res) => {
     const userId = new ObjectId(req.user.sub);
     const entries = await db.collection('entries')
       .find({ userId })
-      .project({ content:1, createdAt:1, digest:1, signature:1, sigAlg:1, sigKid:1, type:1, originalId:1, originalDigest:1 })
+      .project({ 
+        content: 1, 
+        createdAt: 1, 
+        digest: 1, 
+        signature: 1, 
+        sigAlg: 1, 
+        sigKid: 1, 
+        type: 1, 
+        originalId: 1, 
+        originalDigest: 1,
+        // Include location fields for complete export
+        latitude: 1, 
+        longitude: 1, 
+        locationName: 1
+      })
       .sort({ createdAt: 1 })
       .toArray();
     res.setHeader('Content-Type','application/json');
