@@ -328,6 +328,11 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
 
     // Extract all validated fields including location
     const { content, latitude, longitude, locationName } = req.body;
+    
+    // Debug logging to track what we're receiving
+    console.log('[commit] keys=', Object.keys(req.body || {}));
+    console.log('[commit] location fields:', { latitude, longitude, locationName });
+    
     if (!content || typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Content required' });
     }
@@ -344,6 +349,14 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
         ...(locationName ? { locationName } : {})
       } : {})
     };
+
+    // Debug logging to track what we're saving
+    console.log('[commit] saving doc:', { 
+      userId: doc.userId, 
+      content: doc.content?.substring(0, 50) + '...',
+      hasLocation: !!(doc.latitude && doc.longitude),
+      locationFields: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude, locationName: doc.locationName } : null
+    });
 
     // immutable digest (client-visible)
     const digest = commitDigest({ userId: sub, content, createdAt, location: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude } : null });
@@ -363,6 +376,14 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
 
     // Return the complete saved document including location fields
     const savedEntry = { _id: String(result.insertedId), ...doc };
+    
+    // Debug logging to track what we're returning
+    console.log('[commit] returning saved entry:', { 
+      id: savedEntry._id,
+      hasLocation: !!(savedEntry.latitude && savedEntry.longitude),
+      locationFields: savedEntry.latitude ? { latitude: savedEntry.latitude, longitude: savedEntry.longitude, locationName: savedEntry.locationName } : null
+    });
+    
     res.status(201).json(savedEntry);
   } catch (e) {
     console.error('commit error:', e);
@@ -631,6 +652,17 @@ boot();
 // Friendly root route
 app.get('/', (_req, res) => {
   res.status(200).json({ ok: true, name: 'hbuk-backend', ts: new Date().toISOString() });
+});
+
+// Version endpoint for debugging deployments
+app.get('/version', (_req, res) => {
+  res.status(200).json({ 
+    ok: true, 
+    name: 'hbuk-backend',
+    dbName: process.env.MONGODB_DB_NAME || 'hbuk',
+    nodeEnv: process.env.NODE_ENV || 'development',
+    ts: new Date().toISOString()
+  });
 });
 
 // Global error handler - must be last
