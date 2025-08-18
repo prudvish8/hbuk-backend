@@ -100,24 +100,41 @@ const allowedOrigins = [
   'http://localhost:3000',
 ];
 
+// Netlify Deploy Preview patterns
+const ORIGIN_PATTERNS = [
+  /^https?:\/\/hbuk\.xyz$/,                          // prod
+  /^https?:\/\/www\.hbuk\.xyz$/,                      // prod www
+  /^https?:\/\/localhost(?::\d+)?$/,                 // local dev
+  /^https?:\/\/127\.0\.0\.1(?::\d+)?$/,              // local dev
+  /^https?:\/\/192\.168\.\d+\.\d+(?::\d+)?$/,        // LAN dev
+  /^https?:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/, // Netlify Deploy Previews
+  /^https?:\/\/[a-z0-9-]+\.netlify\.app$/,           // Netlify branch deploys
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // allow non-browser clients
+  return ORIGIN_PATTERNS.some((re) => re.test(origin));
+}
+
 app.use((req, res, next) => {
   // quick path for health to avoid CORS noise
   if (req.path === '/health' || req.path === '/health/db') return next();
   next();
 });
 
+app.use((req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
+
 app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true); // curl/Postman or same-origin
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS: Origin ${origin} not allowed`));
-  },
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
+  allowedHeaders: ['Content-Type','Authorization','X-HBUK-SMOKE'],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
 }));
 
-// cors() already handles OPTIONS preflight automatically
+// Ensure preflight OPTIONS is handled fast
+app.options('*', cors());
 
 // Security and body parsing middleware (early in stack)
 app.set('trust proxy', 1); // Render behind proxy
