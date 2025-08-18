@@ -15,11 +15,11 @@ export const loginSchema = Joi.object({
 });
 
 export const entrySchema = Joi.object({
-    content: Joi.string().min(1).max(65536).required(),
-    // Optional location fields for future use
-    locationName: Joi.string().max(120).optional(),
-    latitude: Joi.number().min(-90).max(90).optional(),
-    longitude: Joi.number().min(-180).max(180).optional(),
+    content: Joi.string().min(1).max(65535).required(),
+    // Optional location fields - explicitly whitelisted
+    latitude: Joi.number().min(-90).max(90).precision(6).optional(),
+    longitude: Joi.number().min(-180).max(180).precision(6).optional(),
+    locationName: Joi.string().trim().max(120).optional()
 });
 
 // --- Middleware Function ---
@@ -27,7 +27,7 @@ export const entrySchema = Joi.object({
 export const validate = (schema) => (req, res, next) => {
     const { error, value } = schema.validate(req.body, {
         abortEarly: false,
-        stripUnknown: true, // drop any unexpected fields
+        stripUnknown: true, // drop any unexpected fields - keep this for security
     });
     if (error) {
         console.error("Validation Error:", error.details[0].message);

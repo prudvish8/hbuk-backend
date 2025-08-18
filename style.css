@@ -58,6 +58,19 @@ body{
 .focus .chrome{display:none}
 .focus .entry-meta{display:none}
 
+/* Focus reveal strip at the very top */
+#focus-reveal {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 8px; z-index: 10000;
+  cursor: ns-resize;
+  display: none;
+}
+body.focus #focus-reveal { display: block; }
+
+/* Hide toolbar/header in focus mode */
+body.focus .appbar, body.focus header { display: none; }
+
 /* Floating commit button for focus mode */
 .commit-bar{position:fixed; right:24px; bottom:24px; z-index:20}
 

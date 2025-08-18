@@ -326,7 +326,8 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const sub = req.user?.sub;
     if (!sub) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { content, location } = req.body || {};
+    // Extract all validated fields including location
+    const { content, latitude, longitude, locationName } = req.body;
     if (!content || typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Content required' });
     }
@@ -335,12 +336,17 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const doc = {
       userId: new ObjectId(sub),
       content,
-      location: location || null,
       createdAt,
+      // Include location fields if they exist
+      ...(latitude !== undefined && longitude !== undefined ? {
+        latitude,
+        longitude,
+        ...(locationName ? { locationName } : {})
+      } : {})
     };
 
     // immutable digest (client-visible)
-    const digest = commitDigest({ userId: sub, content, createdAt, location });
+    const digest = commitDigest({ userId: sub, content, createdAt, location: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude } : null });
 
     // optional server-side witness signature (can rotate HBUK_SIGNING_SECRET later)
     const sig = crypto.createHmac('sha256', process.env.HBUK_SIGNING_SECRET || 'hbuk-dev')
@@ -355,14 +361,9 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const result = await db.collection('entries').insertOne(doc);
     METRICS.commits_total++;
 
-    res.status(201).json({
-      id: String(result.insertedId),
-      createdAt: createdAt.toISOString(),
-      digest,
-      signature: sig,
-      sigAlg: SIG_ALG,
-      sigKid: SIG_KID
-    });
+    // Return the complete saved document including location fields
+    const savedEntry = { _id: String(result.insertedId), ...doc };
+    res.status(201).json(savedEntry);
   } catch (e) {
     console.error('commit error:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -589,8 +590,9 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
 async function boot() {
   try {
     await client.connect();
-    db = client.db('hbuk'); // adjust if your DB name differs
-    console.log('✅ Connected to MongoDB');
+    const DB_NAME = process.env.MONGODB_DB_NAME || 'hbuk';
+    db = client.db(DB_NAME);
+    console.log(`✅ Connected to MongoDB database: ${DB_NAME}`);
 
     // Ensure unique index on email
     try {
