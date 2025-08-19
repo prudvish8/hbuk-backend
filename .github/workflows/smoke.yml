@@ -10,7 +10,7 @@ permissions:
 
 env:
   API: https://hbuk-backend-hvow.onrender.com
-  HUSKY: "0"                 # don't run git hooks in CI
+  HUSKY: "0"
 
 jobs:
   smoke:
@@ -23,8 +23,6 @@ jobs:
         with:
           node-version: 20
 
-      # If you truly need node modules for other steps, keep this;
-      # otherwise you can remove it entirely since we use curl below.
       - name: Install (no scripts)
         run: npm ci --no-audit --no-fund --ignore-scripts
 
