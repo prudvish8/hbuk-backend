@@ -3,7 +3,7 @@
 // Usage (dry run):  DRY_RUN=1 node scripts/maintenance/merge_hbuk.js
 // Usage (real run): node scripts/maintenance/merge_hbuk.js
 
-const { MongoClient, ObjectId } = require('mongodb');
+import { MongoClient, ObjectId } from 'mongodb';
 
 const URI        = process.env.MONGODB_URI;                 // required
 const SOURCE_DB  = process.env.SOURCE_DB  || 'hbuk_db';     // old
