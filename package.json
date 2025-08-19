@@ -13,6 +13,8 @@
     "test-maintenance": "node scripts/test-maintenance.mjs",
     "test-metrics": "node scripts/test-metrics.mjs",
     "import:check": "node scripts/smoke-import.mjs",
+    "merge:dry": "DRY_RUN=1 node scripts/maintenance/merge_hbuk.js",
+    "merge:run": "node scripts/maintenance/merge_hbuk.js",
     "prepare": "if [ \"$NODE_ENV\" = \"production\" ]; then echo 'Skipping husky in production'; else command -v husky >/dev/null 2>&1 && husky || echo 'husky not installed, skipping'; fi"
   },
   "keywords": [],
