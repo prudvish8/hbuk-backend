@@ -1,7 +1,7 @@
-// merge_hbuk.js
+// scripts/maintenance/merge_hbuk.js
 // One-time merge: SOURCE_DB → TARGET_DB, dedupe users by email, remap entry.userId.
-// Usage (dry run):  DRY_RUN=1 node merge_hbuk.js
-// Usage (real run): node merge_hbuk.js
+// Usage (dry run):  DRY_RUN=1 node scripts/maintenance/merge_hbuk.js
+// Usage (real run): node scripts/maintenance/merge_hbuk.js
 
 const { MongoClient, ObjectId } = require('mongodb');
 
