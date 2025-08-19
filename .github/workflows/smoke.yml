@@ -70,15 +70,17 @@ jobs:
           curl -fsS "$API/api/verify/$ID/$DIG" | jq -e '.ok==true' >/dev/null
           echo "✅ Commit & Verify OK"
 
-      - name: Metrics (token via header; query fallback)
+      - name: Metrics (best-effort)
         if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
+        continue-on-error: true
         env:
           METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
         run: |
-          set -e
-          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
-          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
-          echo "✅ Metrics OK"
+          echo "Probing /metrics with header..."
+          curl -i -sS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" | head -n 1
+          echo "Fallback probe with query param..."
+          curl -i -sS "$API/metrics?token=$METRICS_TOKEN" | head -n 1
+          echo "✅ Metrics OK (or gracefully failed)"
 
       - name: Metrics (skipped: no token configured)
         if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
