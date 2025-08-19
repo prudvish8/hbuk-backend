@@ -87,13 +87,11 @@ jobs:
 
       - name: Metrics (token via header; query fallback)
         if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
-        env:
-          METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
         run: |
           # keep this step soft so a bad token doesn't fail the whole job
           set +e
-          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
-          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+          curl -fsS -H "X-Metrics-Token: ${{ secrets.HBUK_METRICS_TOKEN }}" "$API/metrics" >/dev/null \
+          || curl -fsS "$API/metrics?token=${{ secrets.HBUK_METRICS_TOKEN }}" >/dev/null
           EC=$?
           if [ $EC -eq 0 ]; then
             echo "✅ Metrics OK"
