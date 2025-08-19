@@ -133,9 +133,6 @@ app.use(cors({
   maxAge: 86400,
 }));
 
-// Ensure preflight OPTIONS is handled fast
-app.options('*', cors());
-
 // Security and body parsing middleware (early in stack)
 app.set('trust proxy', 1); // Render behind proxy
 app.use(helmet({ contentSecurityPolicy: false })); // Keep CSP disabled for now
