@@ -82,6 +82,6 @@ jobs:
           curl -i -sS "$API/metrics?token=$METRICS_TOKEN" | head -n 1
           echo "✅ Metrics OK (or gracefully failed)"
 
-      - name: Metrics (skipped: no token configured)
+      - name: "Metrics (skipped: no token configured)"
         if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
         run: echo "Skipping metrics (no HBUK_METRICS_TOKEN secret)."
