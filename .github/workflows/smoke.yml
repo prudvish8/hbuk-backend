@@ -5,39 +5,81 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   API: https://hbuk-backend-hvow.onrender.com
+  HUSKY: "0"                 # don't run git hooks in CI
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
 
-      - run: npm ci
-      - run: npm run smoke
+      # If you truly need node modules for other steps, keep this;
+      # otherwise you can remove it entirely since we use curl below.
+      - name: Install (no scripts)
+        run: npm ci --no-audit --no-fund --ignore-scripts
 
-      - name: Register test user (skip emails)
+      - name: Health
+        run: |
+          set -euo pipefail
+          curl -fsS "$API/health" >/dev/null
+          curl -fsS "$API/health/db" >/dev/null
+          echo "✅ Health OK"
+
+      - name: Register + Login
+        id: auth
         env:
-          EMAIL: "u${{ github.run_number }}@hbuk.dev"
+          EMAIL: "u${{ github.run_id }}@hbuk.dev"
           PASS: "test123"
         run: |
+          set -euo pipefail
           curl -sS -X POST "$API/api/register" \
             -H 'Content-Type: application/json' \
             -H 'X-HBUK-SMOKE: 1' \
-            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" >/dev/null || true
 
-      # Only run if a metrics token is configured
+          TOKEN=$(curl -fsS -X POST "$API/api/login" \
+            -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | jq -r .token)
+          test -n "$TOKEN" && echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+          echo "✅ Login OK"
+
+      - name: Commit + Verify
+        env:
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          set -euo pipefail
+          CONTENT=$(jq -c -n --arg t "$(date -u +%FT%TZ)" '{event:"ci-smoke",ts:$t,source:"github-actions"}')
+          RES=$(curl -fsS -X POST "$API/api/commit" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d "{\"content\":\"$CONTENT\",\"latitude\":45.5,\"longitude\":-122.6,\"locationName\":\"SmokeTest\"}")
+          echo "$RES" | jq .
+          ID=$(echo "$RES" | jq -r .id)
+          DIG=$(echo "$RES" | jq -r .digest)
+          test -n "$ID" && test -n "$DIG"
+          curl -fsS "$API/api/verify/$ID/$DIG" | jq -e '.ok==true' >/dev/null
+          echo "✅ Commit & Verify OK"
+
       - name: Metrics (token via header; query fallback)
         if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
         env:
           METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
         run: |
+          set -e
           curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
           || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+          echo "✅ Metrics OK"
 
       - name: Metrics (skipped: no token configured)
         if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
-        run: echo "Skipping metrics check (no HBUK_METRICS_TOKEN set)."
+        run: echo "Skipping metrics (no HBUK_METRICS_TOKEN secret)."
