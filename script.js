@@ -15,18 +15,47 @@ document.addEventListener('DOMContentLoaded', () => {
     autoReceiptsChk.checked = JSON.parse(localStorage.getItem(KEY) ?? 'false');
     autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, JSON.stringify(autoReceiptsChk.checked)));
     
-    // Focus mode toggle
+    // Focus mode toggle with escape mechanisms
     const focusToggle = document.getElementById('focusToggle');
     const floatingCommit = document.getElementById('floatingCommit');
     const floatingCommitBtn = document.getElementById('floatingCommitBtn');
+    const FOCUS_KEY = 'hbuk:focus';
     
-    focusToggle?.addEventListener('click', () => {
-        document.body.classList.toggle('focus');
+    function setFocus(on) {
+        document.body.classList.toggle('focus', !!on);
+        localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
         const isFocus = document.body.classList.contains('focus');
         floatingCommit.style.display = isFocus ? 'block' : 'none';
         focusToggle.textContent = isFocus ? 'Show' : 'Focus';
         focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
+    }
+    
+    function initFocus() {
+        // Restore from localStorage
+        if (localStorage.getItem(FOCUS_KEY) === '1') setFocus(true);
+        
+        // Escape key exits focus
+        window.addEventListener('keydown', (e) => { 
+            if (e.key === 'Escape') setFocus(false); 
+        });
+        
+        // Top hover reveal zone
+        const reveal = document.createElement('div');
+        reveal.id = 'focus-reveal';
+        reveal.addEventListener('mouseenter', () => setFocus(false));
+        document.body.appendChild(reveal);
+        
+        // URL override: ?focus=off
+        const params = new URLSearchParams(location.search);
+        if (params.get('focus') === 'off') setFocus(false);
+    }
+    
+    focusToggle?.addEventListener('click', () => {
+        setFocus(!document.body.classList.contains('focus'));
     });
+    
+    // Initialize focus mode
+    initFocus();
     
     // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
     document.addEventListener('keydown', (e) => {
@@ -102,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const metaP = document.createElement('div');
             metaP.className = 'badge';
             const date = new Date(entry.createdAt || entry.timestamp);
-            const locationString = entry.locationName || 'Location not available';
+            const locationString = formatLocation(entry);
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
             
             // Add digest display with copy and verify actions
@@ -182,6 +211,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- LOCATION FORMATTING HELPER ---
+    function formatLocation(entry) {
+        if (entry?.locationName) return entry.locationName;
+        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
+            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
+        }
+        return 'Location not available';
+    }
+
     // --- DOWNLOAD RECEIPT FUNCTION ---
     function downloadReceipt(entry) {
         const receipt = {
@@ -224,19 +262,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     downloadReceipt(savedEntry);
                 }
 
-                // Add the new entry to our local list
+                // Add the new entry to our local list using SERVER RESPONSE (not optimistic data)
                 const newEntry = {
-                    _id: savedEntry.id,         // alias so render code can use either
-                    id: savedEntry.id,
-                    content: entryData.content,
-                    createdAt: savedEntry.createdAt,
-                    digest: savedEntry.digest,
-                    signature: savedEntry.signature,
-                    // Include location data if it exists
-                    ...(entryData.latitude && {
-                        latitude: entryData.latitude,
-                        longitude: entryData.longitude,
-                        locationName: entryData.locationName
+                    _id: savedEntry._id || savedEntry.id,  // Use server _id
+                    id: savedEntry._id || savedEntry.id,   // Keep both for compatibility
+                    content: savedEntry.content,           // Use server content
+                    createdAt: savedEntry.createdAt,       // Use server timestamp
+                    digest: savedEntry.digest,             // Use server digest
+                    signature: savedEntry.signature,       // Use server signature
+                    // ✅ Use server location data - this is the key fix
+                    ...(savedEntry.latitude && {
+                        latitude: savedEntry.latitude,
+                        longitude: savedEntry.longitude,
+                        locationName: savedEntry.locationName
                     })
                 };
                 entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc

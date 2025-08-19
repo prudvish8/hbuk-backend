@@ -100,24 +100,38 @@ const allowedOrigins = [
   'http://localhost:3000',
 ];
 
+// Netlify Deploy Preview patterns
+const ORIGIN_PATTERNS = [
+  /^https?:\/\/hbuk\.xyz$/,                          // prod
+  /^https?:\/\/www\.hbuk\.xyz$/,                      // prod www
+  /^https?:\/\/localhost(?::\d+)?$/,                 // local dev
+  /^https?:\/\/127\.0\.0\.1(?::\d+)?$/,              // local dev
+  /^https?:\/\/192\.168\.\d+\.\d+(?::\d+)?$/,        // LAN dev
+  /^https?:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/, // Netlify Deploy Previews
+  /^https?:\/\/[a-z0-9-]+\.netlify\.app$/,           // Netlify branch deploys
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // allow non-browser clients
+  return ORIGIN_PATTERNS.some((re) => re.test(origin));
+}
+
 app.use((req, res, next) => {
   // quick path for health to avoid CORS noise
   if (req.path === '/health' || req.path === '/health/db') return next();
   next();
 });
 
+app.use((req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
+
 app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true); // curl/Postman or same-origin
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(new Error(`CORS: Origin ${origin} not allowed`));
-  },
+  origin: (origin, cb) => cb(null, isAllowedOrigin(origin)),
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization']
+  allowedHeaders: ['Content-Type','Authorization','X-HBUK-SMOKE'],
+  optionsSuccessStatus: 204,
+  maxAge: 86400,
 }));
-
-// cors() already handles OPTIONS preflight automatically
 
 // Security and body parsing middleware (early in stack)
 app.set('trust proxy', 1); // Render behind proxy
@@ -326,7 +340,13 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const sub = req.user?.sub;
     if (!sub) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { content, location } = req.body || {};
+    // Extract all validated fields including location
+    const { content, latitude, longitude, locationName } = req.body;
+    
+    // Debug logging to track what we're receiving
+    console.log('[commit] keys=', Object.keys(req.body || {}));
+    console.log('[commit] location fields:', { latitude, longitude, locationName });
+    
     if (!content || typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Content required' });
     }
@@ -335,12 +355,25 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const doc = {
       userId: new ObjectId(sub),
       content,
-      location: location || null,
       createdAt,
+      // Include location fields if they exist
+      ...(latitude !== undefined && longitude !== undefined ? {
+        latitude,
+        longitude,
+        ...(locationName ? { locationName } : {})
+      } : {})
     };
 
+    // Debug logging to track what we're saving
+    console.log('[commit] saving doc:', { 
+      userId: doc.userId, 
+      content: doc.content?.substring(0, 50) + '...',
+      hasLocation: !!(doc.latitude && doc.longitude),
+      locationFields: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude, locationName: doc.locationName } : null
+    });
+
     // immutable digest (client-visible)
-    const digest = commitDigest({ userId: sub, content, createdAt, location });
+    const digest = commitDigest({ userId: sub, content, createdAt, location: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude } : null });
 
     // optional server-side witness signature (can rotate HBUK_SIGNING_SECRET later)
     const sig = crypto.createHmac('sha256', process.env.HBUK_SIGNING_SECRET || 'hbuk-dev')
@@ -355,14 +388,17 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const result = await db.collection('entries').insertOne(doc);
     METRICS.commits_total++;
 
-    res.status(201).json({
-      id: String(result.insertedId),
-      createdAt: createdAt.toISOString(),
-      digest,
-      signature: sig,
-      sigAlg: SIG_ALG,
-      sigKid: SIG_KID
+    // Return the complete saved document including location fields
+    const savedEntry = { _id: String(result.insertedId), ...doc };
+    
+    // Debug logging to track what we're returning
+    console.log('[commit] returning saved entry:', { 
+      id: savedEntry._id,
+      hasLocation: !!(savedEntry.latitude && savedEntry.longitude),
+      locationFields: savedEntry.latitude ? { latitude: savedEntry.latitude, longitude: savedEntry.longitude, locationName: savedEntry.locationName } : null
     });
+    
+    res.status(201).json(savedEntry);
   } catch (e) {
     console.error('commit error:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -429,7 +465,21 @@ app.get('/api/export', authenticateToken, async (req, res) => {
     const userId = new ObjectId(req.user.sub);
     const entries = await db.collection('entries')
       .find({ userId })
-      .project({ content:1, createdAt:1, digest:1, signature:1, sigAlg:1, sigKid:1, type:1, originalId:1, originalDigest:1 })
+      .project({ 
+        content: 1, 
+        createdAt: 1, 
+        digest: 1, 
+        signature: 1, 
+        sigAlg: 1, 
+        sigKid: 1, 
+        type: 1, 
+        originalId: 1, 
+        originalDigest: 1,
+        // Include location fields for complete export
+        latitude: 1, 
+        longitude: 1, 
+        locationName: 1
+      })
       .sort({ createdAt: 1 })
       .toArray();
     res.setHeader('Content-Type','application/json');
@@ -589,8 +639,9 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
 async function boot() {
   try {
     await client.connect();
-    db = client.db('hbuk'); // adjust if your DB name differs
-    console.log('✅ Connected to MongoDB');
+    const DB_NAME = process.env.MONGODB_DB_NAME || 'hbuk';
+    db = client.db(DB_NAME);
+    console.log(`✅ Connected to MongoDB database: ${DB_NAME}`);
 
     // Ensure unique index on email
     try {
@@ -629,6 +680,17 @@ boot();
 // Friendly root route
 app.get('/', (_req, res) => {
   res.status(200).json({ ok: true, name: 'hbuk-backend', ts: new Date().toISOString() });
+});
+
+// Version endpoint for debugging deployments
+app.get('/version', (_req, res) => {
+  res.status(200).json({ 
+    ok: true, 
+    name: 'hbuk-backend',
+    dbName: process.env.MONGODB_DB_NAME || 'hbuk',
+    nodeEnv: process.env.NODE_ENV || 'development',
+    ts: new Date().toISOString()
+  });
 });
 
 // Global error handler - must be last
