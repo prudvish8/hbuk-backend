@@ -10,12 +10,17 @@ permissions:
 
 env:
   API: https://hbuk-backend-hvow.onrender.com
-  HUSKY: "0"
+  HUSKY: "0"  # never run git hooks in CI
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    # 👇 make the token available as an env var
+    env:
+      METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,14 +29,16 @@ jobs:
           node-version: 20
 
       - name: Install (no scripts)
-        run: npm ci --no-audit --no-fund --ignore-scripts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          npm ci --no-audit --no-fund --ignore-scripts
 
       - name: Health
         run: |
           set -euo pipefail
           curl -fsS "$API/health" >/dev/null
           curl -fsS "$API/health/db" >/dev/null
-          echo "✅ Health OK"
 
       - name: Register + Login
         id: auth
@@ -48,8 +55,7 @@ jobs:
           TOKEN=$(curl -fsS -X POST "$API/api/login" \
             -H 'Content-Type: application/json' \
             -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | jq -r .token)
-          test -n "$TOKEN" && echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
-          echo "✅ Login OK"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Commit + Verify
         env:
@@ -61,25 +67,18 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             -H 'Content-Type: application/json' \
             -d "{\"content\":\"$CONTENT\",\"latitude\":45.5,\"longitude\":-122.6,\"locationName\":\"SmokeTest\"}")
-          echo "$RES" | jq .
           ID=$(echo "$RES" | jq -r .id)
           DIG=$(echo "$RES" | jq -r .digest)
           test -n "$ID" && test -n "$DIG"
           curl -fsS "$API/api/verify/$ID/$DIG" | jq -e '.ok==true' >/dev/null
-          echo "✅ Commit & Verify OK"
 
-      - name: Metrics (best-effort)
-        if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
-        continue-on-error: true
-        env:
-          METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
+      - name: Metrics (token via header; query fallback)
+        if: ${{ env.METRICS_TOKEN != '' }}
         run: |
-          echo "Probing /metrics with header..."
-          curl -i -sS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" | head -n 1
-          echo "Fallback probe with query param..."
-          curl -i -sS "$API/metrics?token=$METRICS_TOKEN" | head -n 1
-          echo "✅ Metrics OK (or gracefully failed)"
+          set -e
+          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
+          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
 
       - name: "Metrics (skipped: no token configured)"
-        if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
+        if: ${{ env.METRICS_TOKEN == '' }}
         run: echo "Skipping metrics (no HBUK_METRICS_TOKEN secret)."
