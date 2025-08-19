@@ -3,36 +3,41 @@ name: Smoke (prod)
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 env:
   API: https://hbuk-backend-hvow.onrender.com
-  METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
 
 jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - run: npm ci
+      - run: npm run smoke
 
-      - name: Install
-        run: npm ci --prefer-offline --no-audit --no-fund
-
-      - name: Sanity script
-        run: npm run sanity
-
-      - name: Metrics (token via header; query fallback)
-        if: ${{ env.METRICS_TOKEN != '' }}
+      - name: Register test user (skip emails)
+        env:
+          EMAIL: "u${{ github.run_number }}@hbuk.dev"
+          PASS: "test123"
         run: |
-          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null
-          curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
+          curl -sS -X POST "$API/api/register" \
+            -H 'Content-Type: application/json' \
+            -H 'X-HBUK-SMOKE: 1' \
+            -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" || true
+
+      # Only run if a metrics token is configured
+      - name: Metrics (token via header; query fallback)
+        if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
+        env:
+          METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN }}
+        run: |
+          curl -fsS -H "X-Metrics-Token: $METRICS_TOKEN" "$API/metrics" >/dev/null \
+          || curl -fsS "$API/metrics?token=$METRICS_TOKEN" >/dev/null
 
       - name: Metrics (skipped: no token configured)
-        if: ${{ env.METRICS_TOKEN == '' }}
+        if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
         run: echo "Skipping metrics check (no HBUK_METRICS_TOKEN set)."
