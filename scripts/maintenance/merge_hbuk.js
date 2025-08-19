@@ -26,12 +26,21 @@ if (!URI) {
 
     console.log(`\n🔗 Connected. SOURCE_DB=${SOURCE_DB} → TARGET_DB=${TARGET_DB}  DRY_RUN=${DRY_RUN ? 'yes' : 'no'}`);
 
-    // Ensure key indexes on target
+    // Ensure key indexes on target (idempotent; ignore name conflicts)
     if (!DRY_RUN) {
-      await dst.collection('users').createIndex({ email: 1 }, { unique: true });
-      await dst.collection('entries').createIndex({ userId: 1, createdAt: -1 });
+      try {
+        await dst.collection('users').createIndex({ email: 1 }, { unique: true, name: 'users_email_unique' });
+      } catch (e) {
+        if (e?.codeName === 'IndexOptionsConflict' || e?.code === 85) {
+          console.log('ℹ️  users.email unique index already exists (name conflict ignored).');
+        } else {
+          throw e;
+        }
+      }
+      // Skipping entries compound index creation per one-time merge runbook.
+      // The target DB already manages its indexes; we won't alter them here.
       // Optional if digest must be unique:
-      // await dst.collection('entries').createIndex({ digest: 1 }, { unique: true });
+      // try { await dst.collection('entries').createIndex({ digest: 1 }, { unique: true, name: 'entries_digest_unique' }); } catch (e) { if (!(e?.codeName === 'IndexOptionsConflict' || e?.code === 85)) throw e; }
     }
 
     // 1) Upsert users by email and build oldId -> newId map
