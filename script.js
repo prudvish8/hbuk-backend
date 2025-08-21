@@ -69,6 +69,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Focus editor
     editor?.focus();
     
+    // Bottom dock commits by delegating to the normal button
+    const dockBtn = document.getElementById('commitDockBtn');
+    const mainBtn = document.getElementById('commitBtn');
+    if (dockBtn && mainBtn) {
+        dockBtn.addEventListener('click', () => mainBtn.click());
+    }
+    
     // Global entries array to store all entries
     let entries = [];
 
@@ -457,61 +464,57 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
-// Helpers so we never crash if an element is missing
-function styleOf(id) {
-  const el = document.getElementById(id);
-  return el && el.style ? el.style : null;
-}
+// ---- Focus mode init (robust) ----
+(function initFocus() {
+  const q = (id) => document.getElementById(id);
+  const $btn = q('focusToggle') || q('focusBtn'); // support either id
 
-// ---- Focus helpers (safe, class-only) ----
-function setFocus(on) {
-  const isOn = !!on;
-  document.body.classList.toggle('focus', isOn);
-  localStorage.setItem('hbuk:focus', isOn ? '1' : '0');
+  // return a style object or null (never throw)
+  const styleOf = (el) => (el && el.style ? el.style : null);
 
-  // Safely toggle optional UI bits (only if present)
-  const dock = styleOf('commitDock');      // bottom dock
-  if (dock) dock.display = isOn ? 'flex' : 'none';
+  window.setFocus = function (on) {
+    const isOn = !!on;
+    document.body.classList.toggle('focus', isOn);
+    localStorage.setItem('hbuk:focus', isOn ? '1' : '0');
 
-  const strip = styleOf('focus-reveal');   // top hover strip
-  if (strip) strip.display = isOn ? 'block' : 'none';
+    // show/hide bottom dock if present
+    const dock = styleOf(q('commitDock'));
+    if (dock) dock.display = isOn ? 'flex' : 'none';
 
-  // Hide any legacy left-side button if it exists
-  const legacy = styleOf('floatingCommit');
-  if (legacy) legacy.display = 'none';
-}
+    // show/hide hover strip if present
+    const strip = styleOf(q('focus-reveal'));
+    if (strip) strip.display = isOn ? 'block' : 'none';
 
-function restoreFocusFromStorage() {
-  if (localStorage.getItem('hbuk:focus') === '1') setFocus(true);
-}
+    // hide any legacy left-side button if it still exists
+    const legacy = styleOf(q('floatingCommit'));
+    if (legacy) legacy.display = 'none';
+  };
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Header button that toggles focus
-  const focusBtn = document.getElementById('focusToggle');   // <- using your existing id
-  if (focusBtn) {
-    focusBtn.addEventListener('click', () => {
-      setFocus(!document.body.classList.contains('focus'));
-      // Optionally flip button label between "Focus"/"Show"
-      focusBtn.textContent = document.body.classList.contains('focus') ? 'Show' : 'Focus';
-    });
+  // Build the hover strip if missing
+  if (!q('focus-reveal')) {
+    const div = document.createElement('div');
+    div.id = 'focus-reveal';
+    div.style.cssText =
+      'position:fixed;top:0;left:0;right:0;height:8px;z-index:9999;display:none;cursor:ns-resize;';
+    div.addEventListener('mouseenter', () => setFocus(false));
+    document.body.appendChild(div);
   }
 
-  // Hover strip to exit focus
-  const reveal = document.getElementById('focus-reveal');
-  if (reveal) reveal.addEventListener('mouseenter', () => setFocus(false));
+  // Toggle on click
+  if ($btn) {
+    $btn.addEventListener('click', () =>
+      setFocus(!document.body.classList.contains('focus'))
+    );
+  }
 
-  // Bottom dock commits by delegating to the normal button
-  const dockBtn   = document.getElementById('commitDockBtn');
-  const mainBtn   = document.getElementById('commitBtn'); // your existing black button
-  if (dockBtn && mainBtn) dockBtn.addEventListener('click', () => mainBtn.click());
+  // Esc to exit
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setFocus(false);
+  });
 
-  restoreFocusFromStorage();
-});
-
-// ESC exits focus
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') setFocus(false);
-});
+  // Restore last state
+  if (localStorage.getItem('hbuk:focus') === '1') setFocus(true);
+})();
 
 // ---------- Copy UX (digest chip + full entry) ----------
 // Keep a map of entries you fetched/created
