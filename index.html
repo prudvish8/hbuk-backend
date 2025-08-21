@@ -6,6 +6,7 @@
     <title>hbuk</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="notifications.css">
+    <link rel="stylesheet" href="focus.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
       .notif{margin:12px 0;padding:10px;border-radius:8px;background:#f4f4f5}
@@ -50,5 +51,11 @@
     
     <script type="module" src="api-utils.js"></script>
     <script type="module" src="script.js"></script>
+
+    <div id="focus-reveal" title="Hover here or press Esc to exit Focus"></div>
+
+    <div class="commit-dock" role="toolbar" aria-label="Focus actions">
+      <button id="commit-dock-button" class="primary">Commit</button>
+    </div>
 </body>
 </html>

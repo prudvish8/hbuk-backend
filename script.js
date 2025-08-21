@@ -123,6 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             entryDiv.className = 'entry';
+            // Add data attributes for copy functionality
+            const entryId = entry._id || entry.id;
+            entryDiv.setAttribute('data-entry-id', entryId);
             
             const textP = document.createElement('div');
             textP.className = 'content';
@@ -144,8 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const badgeDiv = document.createElement('div');
                 badgeDiv.className = 'badge entry-meta';
                 badgeDiv.innerHTML = `
-                    <span class="digest-chip" title="A cryptographic fingerprint of this entry">digest: ${short}…</span>
-                    <button class="btn secondary" data-copy title="Copy full digest">Copy</button>
+                    <span class="digest-chip" data-digest="${entry.digest}" title="Click to copy full digest">digest: ${short}…</span>
+                    <button class="btn-copy-entry btn secondary" title="Copy this entry">Copy</button>
                     <a class="btn secondary" href="${verifyUrl}" target="_blank" title="Open a public page to check this digest matches the text" ${!eid ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>Verify</a>
                 `;
                 
@@ -157,19 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             historyContainer.appendChild(entryDiv);
         }
         
-        // Wire up copy buttons after rendering
-        document.querySelectorAll('[data-copy]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const digestElement = btn.parentElement.querySelector('.digest-chip');
-                const d = digestElement?.textContent?.replace('digest: ', '').replace('…', '') || '';
-                try { 
-                    await navigator.clipboard.writeText(d); 
-                    showNotification('Digest copied', 'success');
-                } catch { 
-                    showNotification('Copy failed', 'error'); 
-                }
-            });
-        });
+        // Copy buttons are now handled by event delegation in the copy UX section
     }
 
     async function fetchAndRenderEntries() {
@@ -177,15 +168,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await apiRequest('/api/entries');
             if (data && Array.isArray(data.entries)) {
                 entries = data.entries;
+                // Build global map for copy functionality
+                window.ENTRIES_BY_ID = {};
+                entries.forEach(entry => {
+                    const id = entry._id || entry.id;
+                    if (id) window.ENTRIES_BY_ID[id] = entry;
+                });
                 renderEntries(entries);
             } else {
                 entries = [];
+                window.ENTRIES_BY_ID = {};
                 renderEntries([]);
             }
         } catch (error) {
             console.error('Could not fetch entries:', error);
             showNotification('Failed to load entries: ' + error.message, 'error');
             entries = [];
+            window.ENTRIES_BY_ID = {};
             renderEntries([]);
         }
     }
@@ -461,4 +460,120 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initialize();
+});
+
+// --- Focus mode helpers (idempotent) ---
+(() => {
+  const FOCUS_KEY = 'hbuk:focus';
+
+  function setFocus(on){
+    document.body.classList.toggle('focus', !!on);
+    try { localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch {}
+  }
+  function inFocus(){ return document.body.classList.contains('focus'); }
+
+  function initFocus(){
+    // restore last state
+    if ((localStorage.getItem(FOCUS_KEY) || '') === '1') setFocus(true);
+
+    // Esc exits focus
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape') setFocus(false);
+    });
+
+    // Hover top strip exits focus
+    const rz = document.getElementById('focus-reveal');
+    if (rz) rz.addEventListener('mouseenter', () => setFocus(false));
+
+    // URL toggles: ?focus=on|off
+    const p = new URLSearchParams(location.search);
+    if (p.get('focus') === 'on') setFocus(true);
+    if (p.get('focus') === 'off') setFocus(false);
+
+    // Hook any existing "Focus" button if present
+    const btn = document.getElementById('focusToggle') ||
+                document.querySelector('[data-action="toggle-focus"]');
+    if (btn) btn.addEventListener('click', () => setFocus(!inFocus()));
+  }
+
+  // Commit dock uses existing commit logic
+  function bindCommitDock(){
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'commit-dock-button'){
+        // Prefer explicit functions if your app exposes them
+        if (typeof window.handleCommit === 'function') return void window.handleCommit();
+        if (typeof window.createEntry === 'function') return void window.createEntry();
+        // Fallback: click the normal commit button if present
+        const b = document.getElementById('commitBtn') ||
+                  document.querySelector('.commit-btn, button[name="commit"]');
+        if (b) b.click();
+      }
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    initFocus();
+    bindCommitDock();
+  });
+
+  // Expose if other code wants to toggle
+  window.setFocus = window.setFocus || setFocus;
+})();
+
+// --- Copy UX improvements ---
+function toast(msg){  // minimal toast fallback
+  if (window.uiNotify) return window.uiNotify(msg);
+  if (window.showNotification) return window.showNotification(msg, 'success');
+  console.log('[hbuk]', msg);
+}
+
+// Click digest → copy full digest
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('.digest-chip');
+  if (!chip) return;
+  const d = chip.dataset.digest;
+  if (!d) return;
+  navigator.clipboard.writeText(d)
+    .then(() => toast('Digest copied'))
+    .catch(() => toast('Copy failed'));
+});
+
+// Click "Copy" → copy entire entry as pretty JSON
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-copy-entry');
+  if (!btn) return;
+
+  // Find the card and entry id
+  const card = btn.closest('[data-entry-id]');
+  const id = card?.dataset.entryId;
+
+  // Prefer looking up from your in-memory entries map if you have one
+  let entry = (window.ENTRIES_BY_ID && id) ? window.ENTRIES_BY_ID[id] : null;
+
+  // If not available, build a best-effort payload from DOM data you render
+  if (!entry) {
+    entry = { id };
+    // extend here if you stash data-* attrs on the card
+  }
+
+  const payload = {
+    id: entry._id || entry.id || id,
+    digest: entry.digest ?? null,
+    createdAt: entry.createdAt ?? null,
+    content: entry.content ?? null,
+    locationName: entry.locationName ?? null,
+    latitude: entry.latitude ?? null,
+    longitude: entry.longitude ?? null,
+    signature: entry.signature ?? null,
+    sigKid: entry.sigKid ?? null,
+    sigAlg: entry.sigAlg ?? null
+  };
+
+  const text = JSON.stringify(payload, null, 2);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Entry copied');
+  } catch {
+    toast('Copy failed');
+  }
 });

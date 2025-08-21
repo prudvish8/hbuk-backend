@@ -1,0 +1,20 @@
+/* Focus Mode: hide everything, show a white canvas + a bottom commit bar */
+body.focus { background:#fff !important; }
+
+/* Hide common UI areas when focused (covers several class/name variants) */
+body.focus :is(.appbar,.header,.topbar,.toolbar,.filters,.footer,
+               .entries,#history-container,.cards,.card-list,
+               .pets-layer,.export-toolbar) { display:none !important; }
+
+/* Bottom commit dock (only visible in focus) */
+.commit-dock{
+  display:none;
+  position:fixed; left:0; right:0; bottom:0;
+  padding:16px 20px; background:#fff; border-top:1px solid #eee;
+  z-index:10000; justify-content:center; gap:12px;
+}
+body.focus .commit-dock{ display:flex; }
+
+/* Tiny hover strip to exit focus with the mouse (Esc also works) */
+#focus-reveal{ position:fixed; top:0; left:0; right:0; height:8px; z-index:10001; display:none; }
+body.focus #focus-reveal{ display:block; }
