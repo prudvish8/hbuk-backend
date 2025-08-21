@@ -72,6 +72,28 @@ body{
 }
 #commitNotice.show { display: inline-block; }
 
+/* Big round black commit button */
+#commitBtn.commit {
+  border: 0;
+  background: #0a1020;      /* deep navy/black */
+  color: #fff;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1;
+  padding: 16px 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  cursor: pointer;
+  transition: transform .06s ease, box-shadow .12s ease, background .2s ease;
+}
+#commitBtn.commit:active {
+  transform: translateY(1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.18);
+}
+
 /* Focus mode - hide chrome elements */
 .focus .chrome{display:none}
 .focus .entry-meta{display:none}

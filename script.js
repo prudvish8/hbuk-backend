@@ -8,7 +8,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const commitButton = document.getElementById('commitBtn');
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
+    const wordCount = document.getElementById('wordCount');
     const localDraftKey = 'hbuk_local_draft';
+    
+    function updateWordCount() {
+        if (!wordCount) return;
+        const text = editor?.value?.trim() ?? '';
+        const words = text ? text.split(/\s+/).length : 0;
+        wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+    }
     
     // Auto-receipts toggle (default OFF - no surprise downloads)
     const KEY = 'hbuk:autoReceipts';
@@ -309,6 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear the editor and the local draft
                 localStorage.removeItem(localDraftKey);
                 editor.value = '';
+                updateWordCount();          // ← ensures it shows "0 words"
             }
         } catch (error) {
             console.error('Error sending entry to backend:', error);
@@ -319,15 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EVENT LISTENERS ---
 
     // Auto-save local draft and update word count
-    const wordCount = document.getElementById('wordCount');
     editor.addEventListener('input', () => {
         localStorage.setItem(localDraftKey, editor.value);
-        
-        // Update word count
-        if (wordCount) {
-            const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
-            wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
-        }
+        updateWordCount();
     });
 
 
@@ -476,10 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Initialize word count
-        if (wordCount) {
-            const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
-            wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
-        }
+        updateWordCount();
         
         editor.focus();
     }
@@ -502,12 +502,8 @@ function rememberEntry(e) {
 document.addEventListener('click', async (ev) => {
   const chip = ev.target.closest('.digest-chip');
   if (chip) {
-    try {
-      await navigator.clipboard.writeText(chip.dataset.digest);
-      showNotification('Digest copied ✓', 'success');  // your existing toast helper
-    } catch {
-      showNotification('Could not copy digest', 'error');
-    }
+    try { await navigator.clipboard.writeText(chip.dataset.digest); }
+    catch (e) { console.warn('Copy digest failed', e); }
     return;
   }
 
@@ -516,13 +512,9 @@ document.addEventListener('click', async (ev) => {
     const host = copyBtn.closest('[data-entry-id]');
     const id = host?.dataset.entryId;
     const obj = window.ENTRIES_BY_ID?.get(id);
-    if (!obj) { showNotification('Could not find entry data', 'error'); return; }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
-      showNotification('Entry JSON copied ✓', 'success');
-    } catch {
-      showNotification('Could not copy entry', 'error');
-    }
+    if (!obj) return;
+    try { await navigator.clipboard.writeText(JSON.stringify(obj, null, 2)); }
+    catch (e) { console.warn('Copy entry failed', e); }
     return;
   }
 });
