@@ -1,35 +1,24 @@
-/* Force a pure canvas feel in focus */
-body.focus { background: #fff !important; }
+/* blank white canvas */
+body.focus { background:#fff !important; }
 
-/* Hide chrome while focused */
+/* hide chrome */
 body.focus .appbar,
+body.focus .commitRow,            /* the normal row with the black Commit */
 body.focus #entries,
-body.focus .export-row,
-body.focus .toast,
-body.focus .footer { display: none !important; }
+body.focus .toolbar,
+body.focus .header { display:none !important; }
 
-/* Keep the editor centered, no extra padding */
-body.focus .container { max-width: 860px; margin: 0 auto; }
-body.focus .editor-wrap { padding: 0 !important; }
+/* leave just the editor + bottom dock */
+body.focus .editor-wrap { max-width: 960px; margin: 24px auto; }
 
-/* Use existing bar (#floatingCommit) as the single control */
-#floatingCommit {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  display: none;            /* default off */
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #fff;
-  border-top: 1px solid #eee;
-  z-index: 1000;
-}
-body.focus #floatingCommit { display: flex !important; }
+/* reveal zone (to exit by hover) */
+#focus-reveal { display:none; position:fixed; top:0; left:0; right:0; height:8px; z-index:9999; }
+body.focus #focus-reveal { display:block; }
 
-/* 8px escape strip at top */
-#focus-reveal {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 8px; z-index: 1001; display: none;
-}
-body.focus #focus-reveal { display: block; }
+/* bottom dock */
+.commit-dock { display:none; position:fixed; left:0; right:0; bottom:0;
+  padding:16px; background:#fff; border-top:1px solid #eee; justify-content:center; z-index:9998; }
+body.focus .commit-dock { display:flex; }
+
+/* digest chip styling */
+.digest-chip { cursor:copy; font-size:12px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:999px; background:#f6f7f9; }

@@ -38,10 +38,7 @@
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
         
-        <!-- Floating commit button for focus mode -->
-        <div class="commit-bar" id="floatingCommit" style="display:none;">
-            <button id="floatingCommitBtn" class="btn">Commit ↵</button>
-        </div>
+
 
         <section id="entries"></section>
     </main>
@@ -52,10 +49,12 @@
     <script type="module" src="api-utils.js"></script>
     <script type="module" src="script.js"></script>
 
-    <div id="focus-reveal" title="Hover here or press Esc to exit Focus"></div>
+    <!-- Hover strip so Esc/hover can exit focus -->
+    <div id="focus-reveal"></div>
 
-    <div class="commit-dock" role="toolbar" aria-label="Focus actions">
-      <button id="commit-dock-button" class="primary">Commit</button>
+    <!-- Bottom commit dock (only visible in focus mode) -->
+    <div class="commit-dock" id="commitDock">
+      <button id="commitDockBtn">Commit ↩</button>
     </div>
 </body>
 </html>
