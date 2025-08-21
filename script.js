@@ -6,10 +6,8 @@ import { showNotification } from './ui-notify.js';
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commitBtn');
-    const dockBtn = document.getElementById('commit-dock-button');
-    if (dockBtn) {
-      dockBtn.addEventListener('click', () => commitButton.click());
-    }
+    const dockBtn = document.getElementById('commitDockBtn');
+    dockBtn?.addEventListener('click', () => commitButton.click());
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';
@@ -26,9 +24,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function setFocus(on) {
         document.body.classList.toggle('focus', !!on);
         localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
+
         const isFocus = document.body.classList.contains('focus');
-        focusToggle.textContent = isFocus ? 'Show' : 'Focus';
-        focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
+        // Keep the header toggle label in sync (if the button exists)
+        if (focusToggle) {
+            focusToggle.textContent = isFocus ? 'Show' : 'Focus';
+            focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
+        }
+        // Ensure the floating bar is actually visible/hidden (override with !important)
+        const dock = document.getElementById('floatingCommit');
+        if (dock) {
+            dock.style.setProperty('display', isFocus ? 'flex' : 'none', 'important');
+        }
     }
     
     function initFocus() {
