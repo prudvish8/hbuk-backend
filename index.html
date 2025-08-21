@@ -29,12 +29,12 @@
     </header>
 
     <main class="container">
-        <span id="notif" class="badge" aria-live="polite"></span>
         <div class="editor-wrap" style="position:relative;">
             <textarea id="editor" placeholder="Begin..."></textarea>
             <div class="word-count" id="wordCount">0 words</div>
         </div>
         <div class="commitRow">
+            <span id="notif" class="badge" aria-live="polite"></span>
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
         
@@ -54,7 +54,7 @@
 
     <!-- Floating commit bar (only visible in focus mode) -->
     <div id="floatingCommit">
-      <button id="commit-dock-button">Commit</button>
+      <button id="commitDockBtn">Commit</button>
     </div>
 </body>
 </html>

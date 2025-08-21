@@ -5,11 +5,6 @@ export function showNotification(text, type = 'info') {
   if (el) {
     el.textContent = text;
     el.className = `notif ${type}`;
-    el.style.display = 'block';
-    clearTimeout(el._hideTimer);
-    el._hideTimer = setTimeout(() => {
-      el.style.display = 'none';
-    }, 3000);
   } else {
     // Fallback, avoid crashing if no DOM slot
     // eslint-disable-next-line no-alert
