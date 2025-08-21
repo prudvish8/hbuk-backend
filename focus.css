@@ -1,20 +1,35 @@
-/* Focus Mode: hide everything, show a white canvas + a bottom commit bar */
-body.focus { background:#fff !important; }
+/* Force a pure canvas feel in focus */
+body.focus { background: #fff !important; }
 
-/* Hide common UI areas when focused (covers several class/name variants) */
-body.focus :is(.appbar,.header,.topbar,.toolbar,.filters,.footer,
-               .entries,#history-container,.cards,.card-list,
-               .pets-layer,.export-toolbar) { display:none !important; }
+/* Hide chrome while focused */
+body.focus .appbar,
+body.focus #entries,
+body.focus .export-row,
+body.focus .toast,
+body.focus .footer { display: none !important; }
 
-/* Bottom commit dock (only visible in focus) */
-.commit-dock{
-  display:none;
-  position:fixed; left:0; right:0; bottom:0;
-  padding:16px 20px; background:#fff; border-top:1px solid #eee;
-  z-index:10000; justify-content:center; gap:12px;
+/* Keep the editor centered, no extra padding */
+body.focus .container { max-width: 860px; margin: 0 auto; }
+body.focus .editor-wrap { padding: 0 !important; }
+
+/* Use existing bar (#floatingCommit) as the single control */
+#floatingCommit {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: none;            /* default off */
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  border-top: 1px solid #eee;
+  z-index: 1000;
 }
-body.focus .commit-dock{ display:flex; }
+body.focus #floatingCommit { display: flex !important; }
 
-/* Tiny hover strip to exit focus with the mouse (Esc also works) */
-#focus-reveal{ position:fixed; top:0; left:0; right:0; height:8px; z-index:10001; display:none; }
-body.focus #focus-reveal{ display:block; }
+/* 8px escape strip at top */
+#focus-reveal {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 8px; z-index: 1001; display: none;
+}
+body.focus #focus-reveal { display: block; }

@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 badgeDiv.className = 'badge entry-meta';
                 badgeDiv.innerHTML = `
                     <span class="digest-chip" data-digest="${entry.digest}" title="Click to copy full digest">digest: ${short}…</span>
-                    <button class="btn-copy-entry btn secondary" title="Copy this entry">Copy</button>
+                    <button class="copy btn secondary" title="Copy this entry">Copy</button>
                     <a class="btn secondary" href="${verifyUrl}" target="_blank" title="Open a public page to check this digest matches the text" ${!eid ? 'style="opacity: 0.5; pointer-events: none;"' : ''}>Verify</a>
                 `;
                 
@@ -158,6 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
             entryDiv.appendChild(textP);
             entryDiv.appendChild(metaP);
             historyContainer.appendChild(entryDiv);
+            
+            // Bind entry card for copy functionality
+            __bindEntryCard(entryDiv, entry);
         }
         
         // Copy buttons are now handled by event delegation in the copy UX section
@@ -462,118 +465,84 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
-// --- Focus mode helpers (idempotent) ---
-(() => {
+// ---------- Focus mode ----------
+(function setupFocus() {
   const FOCUS_KEY = 'hbuk:focus';
 
-  function setFocus(on){
+  function setFocus(on) {
     document.body.classList.toggle('focus', !!on);
-    try { localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch {}
-  }
-  function inFocus(){ return document.body.classList.contains('focus'); }
-
-  function initFocus(){
-    // restore last state
-    if ((localStorage.getItem(FOCUS_KEY) || '') === '1') setFocus(true);
-
-    // Esc exits focus
-    window.addEventListener('keydown', e => {
-      if (e.key === 'Escape') setFocus(false);
-    });
-
-    // Hover top strip exits focus
-    const rz = document.getElementById('focus-reveal');
-    if (rz) rz.addEventListener('mouseenter', () => setFocus(false));
-
-    // URL toggles: ?focus=on|off
-    const p = new URLSearchParams(location.search);
-    if (p.get('focus') === 'on') setFocus(true);
-    if (p.get('focus') === 'off') setFocus(false);
-
-    // Hook any existing "Focus" button if present
-    const btn = document.getElementById('focusToggle') ||
-                document.querySelector('[data-action="toggle-focus"]');
-    if (btn) btn.addEventListener('click', () => setFocus(!inFocus()));
+    localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
   }
 
-  // Commit dock uses existing commit logic
-  function bindCommitDock(){
-    document.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'commit-dock-button'){
-        // Prefer explicit functions if your app exposes them
-        if (typeof window.handleCommit === 'function') return void window.handleCommit();
-        if (typeof window.createEntry === 'function') return void window.createEntry();
-        // Fallback: click the normal commit button if present
-        const b = document.getElementById('commitBtn') ||
-                  document.querySelector('.commit-btn, button[name="commit"]');
-        if (b) b.click();
-      }
-    });
-  }
+  // restore saved state
+  if (localStorage.getItem(FOCUS_KEY) === '1') setFocus(true);
 
-  window.addEventListener('DOMContentLoaded', () => {
-    initFocus();
-    bindCommitDock();
+  // wire the header toggle (button text usually "Focus"/"Show")
+  const focusBtn = document.querySelector('.appbar [data-focus-toggle]') ||
+                   document.querySelector('.appbar button:has(>span:contains("Focus"))') ||
+                   document.querySelector('.appbar button'); // fallback
+  focusBtn && focusBtn.addEventListener('click', () => {
+    setFocus(!document.body.classList.contains('focus'));
   });
 
-  // Expose if other code wants to toggle
-  window.setFocus = window.setFocus || setFocus;
+  // Esc exits focus
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') setFocus(false);
+  });
+
+  // Hover strip exits focus
+  const reveal = document.createElement('div');
+  reveal.id = 'focus-reveal';
+  reveal.title = 'Exit focus';
+  reveal.addEventListener('mouseenter', () => setFocus(false));
+  document.body.appendChild(reveal);
+
+  // Bottom commit mirrors the main commit button
+  const dockBtn = document.getElementById('commit-dock-button');
+  dockBtn && dockBtn.addEventListener('click', () => {
+    (document.querySelector('button.commit') ||
+     document.querySelector('button[type="submit"]'))?.click();
+  });
 })();
 
-// --- Copy UX improvements ---
-function toast(msg){  // minimal toast fallback
-  if (window.uiNotify) return window.uiNotify(msg);
-  if (window.showNotification) return window.showNotification(msg, 'success');
-  console.log('[hbuk]', msg);
+// ---------- Copy UX (digest chip + full entry) ----------
+window.ENTRIES_BY_ID = window.ENTRIES_BY_ID || Object.create(null);
+
+// Call this inside your renderEntries loop after you create each card element
+function __bindEntryCard(cardEl, entryDoc) {
+  const id = entryDoc._id || entryDoc.id;
+  if (!id) return;
+  window.ENTRIES_BY_ID[id] = entryDoc;
+  cardEl.dataset.entryId = id;
+  // store full digest on the chip
+  const chip = cardEl.querySelector('[data-digest]');
+  if (chip) chip.dataset.digest = entryDoc.digest || '';
 }
 
-// Click digest → copy full digest
-document.addEventListener('click', (e) => {
-  const chip = e.target.closest('.digest-chip');
-  if (!chip) return;
-  const d = chip.dataset.digest;
-  if (!d) return;
-  navigator.clipboard.writeText(d)
-    .then(() => toast('Digest copied'))
-    .catch(() => toast('Copy failed'));
-});
-
-// Click "Copy" → copy entire entry as pretty JSON
+// Delegate clicks for digest chip + copy button
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.btn-copy-entry');
-  if (!btn) return;
-
-  // Find the card and entry id
-  const card = btn.closest('[data-entry-id]');
-  const id = card?.dataset.entryId;
-
-  // Prefer looking up from your in-memory entries map if you have one
-  let entry = (window.ENTRIES_BY_ID && id) ? window.ENTRIES_BY_ID[id] : null;
-
-  // If not available, build a best-effort payload from DOM data you render
-  if (!entry) {
-    entry = { id };
-    // extend here if you stash data-* attrs on the card
+  // digest chip
+  const chip = e.target.closest('[data-digest]');
+  if (chip) {
+    const dig = chip.dataset.digest || chip.textContent.trim();
+    if (dig) {
+      await navigator.clipboard.writeText(dig);
+      (window.notify || window.alert)('Digest copied');
+    }
+    return;
   }
 
-  const payload = {
-    id: entry._id || entry.id || id,
-    digest: entry.digest ?? null,
-    createdAt: entry.createdAt ?? null,
-    content: entry.content ?? null,
-    locationName: entry.locationName ?? null,
-    latitude: entry.latitude ?? null,
-    longitude: entry.longitude ?? null,
-    signature: entry.signature ?? null,
-    sigKid: entry.sigKid ?? null,
-    sigAlg: entry.sigAlg ?? null
-  };
-
-  const text = JSON.stringify(payload, null, 2);
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('Entry copied');
-  } catch {
-    toast('Copy failed');
+  // full entry copy (button with class .copy or data-action attr)
+  const copyBtn = e.target.closest('button.copy,[data-action="copy-entry"]');
+  if (copyBtn) {
+    const card = copyBtn.closest('[data-entry-id]');
+    const id = card && card.dataset.entryId;
+    const doc = id && window.ENTRIES_BY_ID[id];
+    if (!doc) {
+      (window.notify || window.alert)('Could not find entry to copy');
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(doc, null, 2));
+    (window.notify || window.alert)('Entry copied');
   }
 });
