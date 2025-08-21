@@ -6,7 +6,8 @@ import { showNotification } from './ui-notify.js';
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commitBtn');
-    const commitDockBtn = document.getElementById('commitDockBtn');
+    const dockBtn = document.getElementById('commitDockBtn');
+    dockBtn?.addEventListener('click', () => commitButton.click());
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';
@@ -25,16 +26,15 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
 
         const isFocus = document.body.classList.contains('focus');
+        // Keep the header toggle label in sync (if the button exists)
         if (focusToggle) {
             focusToggle.textContent = isFocus ? 'Show' : 'Focus';
-            focusToggle.title       = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
+            focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
         }
-
-        // NEW: hard toggle the dock (wins against any CSS race)
+        // Ensure the floating bar is actually visible/hidden (override with !important)
         const dock = document.getElementById('floatingCommit');
         if (dock) {
             dock.style.setProperty('display', isFocus ? 'flex' : 'none', 'important');
-            void dock.offsetHeight;  // reflow to apply
         }
     }
     
@@ -63,18 +63,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize focus mode
     initFocus();
     
-    // Cmd/Ctrl + Enter commits (dock in focus, regular otherwise)
+    // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            (document.body.classList.contains('focus') ? commitDockBtn : commitButton)?.click();
+            const activeBtn = document.body.classList.contains('focus')
+              ? document.getElementById('commitDockBtn')
+              : commitButton;
+            activeBtn?.click();
         }
-        if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName || '')) {
+        if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
             focusToggle?.click();
         }
     });
-
-    // Dock mirrors the main commit button
-    commitDockBtn?.addEventListener('click', () => commitButton?.click());
     
     // Focus editor
     editor?.focus();
