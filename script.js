@@ -1,4 +1,4 @@
-// The definitive, final, and correct script.js for Hbuk
+// The definitive, correct script.js file for Hbuk
 
 import { apiRequest, getToken, clearToken } from './api-utils.js';
 import { showNotification } from './ui-notify.js';
@@ -6,6 +6,8 @@ import { showNotification } from './ui-notify.js';
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commitBtn');
+    const dockBtn = document.getElementById('commitDockBtn');
+    dockBtn?.addEventListener('click', () => commitButton.click());
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';
@@ -15,58 +17,69 @@ document.addEventListener('DOMContentLoaded', () => {
     autoReceiptsChk.checked = JSON.parse(localStorage.getItem(KEY) ?? 'false');
     autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, JSON.stringify(autoReceiptsChk.checked)));
     
-    // --- REFACTORED & SIMPLIFIED FOCUS LOGIC ---
+    // Focus mode toggle with escape mechanisms
     const focusToggle = document.getElementById('focusToggle');
     const FOCUS_KEY = 'hbuk:focus';
-
+    
     function setFocus(on) {
-        document.body.classList.toggle('focus', on);
+        document.body.classList.toggle('focus', !!on);
         localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
+
+        const isFocus = document.body.classList.contains('focus');
+        // Keep the header toggle label in sync (if the button exists)
         if (focusToggle) {
-            focusToggle.textContent = on ? 'Show UI' : 'Focus';
-            focusToggle.title = on ? 'Show full interface (F)' : 'Enter focus mode (F)';
+            focusToggle.textContent = isFocus ? 'Show' : 'Focus';
+            focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
+        }
+        // Ensure the floating bar is actually visible/hidden (override with !important)
+        const dock = document.getElementById('floatingCommit');
+        if (dock) {
+            dock.style.setProperty('display', isFocus ? 'flex' : 'none', 'important');
         }
     }
-
-    // This is the only event listener we need for the toggle button
-    focusToggle?.addEventListener('click', () => {
-        setFocus(!document.body.classList.contains('focus'));
-    });
-
-    function initializeFocus() {
-        if (localStorage.getItem(FOCUS_KEY) === '1') {
-            setFocus(true);
-        }
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') setFocus(false);
+    
+    function initFocus() {
+        // Restore from localStorage
+        if (localStorage.getItem(FOCUS_KEY) === '1') setFocus(true);
+        
+        // Escape key exits focus
+        window.addEventListener('keydown', (e) => { 
+            if (e.key === 'Escape') setFocus(false); 
         });
+        
+        // Top hover reveal zone (already in HTML)
         const reveal = document.getElementById('focus-reveal');
         reveal?.addEventListener('mouseenter', () => setFocus(false));
+        
+        // URL override: ?focus=off
         const params = new URLSearchParams(location.search);
         if (params.get('focus') === 'off') setFocus(false);
     }
-
-    // --- REFACTORED & INTELLIGENT KEYBOARD SHORTCUTS ---
+    
+    focusToggle?.addEventListener('click', () => {
+        setFocus(!document.body.classList.contains('focus'));
+    });
+    
+    // Initialize focus mode
+    initFocus();
+    
+    // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
     document.addEventListener('keydown', (e) => {
-        // Commit Shortcut
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            e.preventDefault(); // Prevent new line in textarea
-            const isFocus = document.body.classList.contains('focus');
-            // Find the correct, VISIBLE commit button and click it
-            const activeBtn = isFocus 
-                ? document.getElementById('commit-dock-button') 
-                : document.getElementById('commitBtn');
+            const activeBtn = document.body.classList.contains('focus')
+              ? document.getElementById('commit-dock-button')
+              : commitButton;
             activeBtn?.click();
         }
-        // Focus Toggle Shortcut
-        if (e.key.toLowerCase() === 'f' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
+        if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
             focusToggle?.click();
         }
     });
-
+    
     // Focus editor
     editor?.focus();
+    
+
     
     // Global entries array to store all entries
     let entries = [];
@@ -154,6 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Remember entry for copy functionality
             rememberEntry(entry);
         }
+        
+        // Copy buttons are now handled by event delegation in the copy UX section
     }
 
     async function fetchAndRenderEntries() {
@@ -188,86 +203,182 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolve({ latitude: 'not supported', longitude: 'not supported' });
                 return;
             }
-            
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     resolve({
                         latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
+                        longitude: position.coords.longitude,
                     });
                 },
-                (error) => {
-                    console.warn('Location error:', error);
-                    resolve({ latitude: 'error', longitude: 'error' });
-                },
-                { timeout: 10000, enableHighAccuracy: false }
+                () => {
+                    resolve({ latitude: 'unavailable', longitude: 'unavailable' });
+                }
             );
         });
     }
 
-    // --- ENTRY CREATION ---
-    async function createEntry() {
-        const content = editor.value.trim();
-        if (!content) {
-            showNotification('Please enter some content to commit.', 'error');
+    // --- LOCATION FORMATTING HELPER ---
+    function formatLocation(entry) {
+        if (entry?.locationName) return entry.locationName;
+        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
+            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
+        }
+        return 'Location not available';
+    }
+
+    // --- DOWNLOAD RECEIPT FUNCTION ---
+    function downloadReceipt(entry) {
+        const receipt = {
+            id: entry.id,
+            createdAt: entry.createdAt,
+            digest: entry.digest,
+            signature: entry.signature,
+            sigAlg: entry.sigAlg,
+            sigKid: entry.sigKid,
+        };
+        const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hbuk-receipt-${entry.id}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    // --- REFACTORED: The main entry creation logic ---
+    async function createEntry(entryData) {
+        try {
+            // Send the new entry to the backend to be saved
+            const savedEntry = await apiRequest('/api/commit', {
+                method: 'POST',
+                body: JSON.stringify(entryData)
+            });
+
+            if (savedEntry) {
+                console.log('Backend response:', savedEntry);
+
+                // Show the commit receipt with digest
+                showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
+
+                // Download receipt only if auto-receipts is enabled
+                const autoReceiptsOn = localStorage.getItem('hbuk:autoReceipts') === '1';
+                if (autoReceiptsOn) {
+                    downloadReceipt(savedEntry);
+                }
+
+                // Add the new entry to our local list using SERVER RESPONSE (not optimistic data)
+                const newEntry = {
+                    _id: savedEntry._id || savedEntry.id,  // Use server _id
+                    id: savedEntry._id || savedEntry.id,   // Keep both for compatibility
+                    content: savedEntry.content,           // Use server content
+                    createdAt: savedEntry.createdAt,       // Use server timestamp
+                    digest: savedEntry.digest,             // Use server digest
+                    signature: savedEntry.signature,       // Use server signature
+                    // ✅ Use server location data - this is the key fix
+                    ...(savedEntry.latitude && {
+                        latitude: savedEntry.latitude,
+                        longitude: savedEntry.longitude,
+                        locationName: savedEntry.locationName
+                    })
+                };
+                entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc
+
+                // Re-render the history with the updated list
+                renderEntries(entries);
+
+                // Clear the editor and the local draft
+                localStorage.removeItem(localDraftKey);
+                editor.value = '';
+            }
+        } catch (error) {
+            console.error('Error sending entry to backend:', error);
+            // The apiRequest function will handle showing the notification
+        }
+    }
+
+    // --- EVENT LISTENERS ---
+
+    // Auto-save local draft and update word count
+    const wordCount = document.getElementById('wordCount');
+    editor.addEventListener('input', () => {
+        localStorage.setItem(localDraftKey, editor.value);
+        
+        // Update word count
+        if (wordCount) {
+            const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
+            wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+        }
+    });
+
+
+
+    // --- REFACTORED: The commit button listener ---
+    commitButton.addEventListener('click', async () => {
+        const token = localStorage.getItem('hbuk_token');
+        if (!token) {
+            window.location.href = 'login.html';
             return;
         }
 
+        const text = editor.value.trim();
+        if (text === '') return;
+
+        // Disable button and show loading state
         const originalText = commitButton.textContent;
         commitButton.disabled = true;
         commitButton.textContent = 'Committing...';
 
         try {
-            // Get location if available
+            // --- THIS IS THE CRITICAL FIX ---
+            // 1. Get location FIRST and wait for it.
             const location = await getCurrentLocation();
-            const payload = {
-                content,
-                ...(location.latitude !== 'not supported' && location.latitude !== 'error' && {
+            // 2. Get timestamp.
+            const timestamp = new Date().toISOString();
+            // 3. Get location name.
+            let locationName = "Unknown Location";
+            if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
+                try {
+                    const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
+                    const data = await geoResponse.json();
+                    const place = data.locality || data.city;
+                    locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
+                } catch (error) {
+                    console.error("Reverse geocoding failed:", error);
+                    locationName = "Location lookup failed";
+                }
+            } else {
+                locationName = "Location not available";
+            }
+
+            // 4. Build the data package with only the fields we want to store.
+            const newEntry = {
+                content: text,
+                // Only include location data if it's available and valid
+                ...(location.latitude !== 'unavailable' && location.latitude !== 'not supported' && {
                     latitude: location.latitude,
-                    longitude: location.longitude
+                    longitude: location.longitude,
+                    locationName
                 })
             };
 
-            const savedEntry = await apiRequest('/api/commit', {
-                method: 'POST',
-                body: payload
-            });
-
-            if (savedEntry && savedEntry._id) {
-                // Clear editor and save to localStorage
-                editor.value = '';
-                localStorage.removeItem(localDraftKey);
-                
-                // Add to entries array and re-render
-                entries.unshift(savedEntry);
-                renderEntries(entries);
-                
-                // Remember entry for copy functionality
-                rememberEntry(savedEntry);
-                
-                showNotification('Entry committed successfully!', 'success');
-                
-                // Auto-download receipt if enabled
-                if (autoReceiptsChk.checked && savedEntry.digest) {
-                    downloadReceipt(savedEntry);
-                }
-            } else {
-                throw new Error('Invalid response from server');
-            }
+            // 5. NOW send the complete package to the createEntry function.
+            await createEntry(newEntry);
         } catch (error) {
-            console.error('Commit error:', error);
-            showNotification('Failed to commit entry: ' + error.message, 'error');
+            console.error('Error during commit:', error);
+            showNotification('Failed to commit entry. Please try again.', 'error');
         } finally {
             // Re-enable button and restore original text
             commitButton.disabled = false;
             commitButton.textContent = originalText;
         }
-    }
+    });
 
     // --- EXPORT FUNCTIONALITY ---
     async function exportAllEntries() {
         try {
-            const response = await fetch(`${window.API_BASE || ''}/api/export`, {
+            const response = await fetch(`${API_BASE}/api/export`, {
                 headers: {
                     'Authorization': `Bearer ${getToken()}`,
                     'Content-Type': 'application/json'
@@ -347,22 +458,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Initialize word count
-        const wordCount = document.getElementById('wordCount');
         if (wordCount) {
             const words = editor.value.trim() ? editor.value.trim().split(/\s+/).length : 0;
             wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
         }
         
         editor.focus();
-        
-        // Initialize focus mode
-        initializeFocus();
     }
 
     initialize();
 });
 
-// --- Copy UX (digest chip + full entry) ---
+
+
+// ---------- Copy UX (digest chip + full entry) ----------
 // Keep a map of entries you fetched/created
 window.ENTRIES_BY_ID = window.ENTRIES_BY_ID || new Map();
 
@@ -399,38 +508,3 @@ document.addEventListener('click', async (ev) => {
     return;
   }
 });
-
-// Helper function for location formatting
-function formatLocation(entry) {
-    if (entry?.locationName) return entry.locationName;
-    if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
-        return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
-    }
-    return 'Location not available';
-}
-
-// Helper function for downloading receipts
-function downloadReceipt(entry) {
-    const receipt = {
-        id: entry._id || entry.id,
-        content: entry.content,
-        digest: entry.digest,
-        signature: entry.signature,
-        createdAt: entry.createdAt,
-        location: entry.latitude ? {
-            latitude: entry.latitude,
-            longitude: entry.longitude,
-            locationName: entry.locationName
-        } : null
-    };
-    
-    const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hbuk-receipt-${entry.digest.slice(0, 8)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-}
