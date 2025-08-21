@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
 
                 // Download receipt only if auto-receipts is enabled
-                const autoReceiptsOn = localStorage.getItem('hbuk:autoReceipts') === '1';
+                const autoReceiptsOn = JSON.parse(localStorage.getItem('hbuk:autoReceipts') ?? 'false');
                 if (autoReceiptsOn) {
                     downloadReceipt(savedEntry);
                 }
