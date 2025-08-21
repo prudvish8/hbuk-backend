@@ -6,7 +6,6 @@ import { showNotification } from './ui-notify.js';
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commitBtn');
-    const commitDockBtn = document.getElementById('commitDockBtn');
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';
@@ -16,6 +15,19 @@ document.addEventListener('DOMContentLoaded', () => {
     autoReceiptsChk.checked = JSON.parse(localStorage.getItem(KEY) ?? 'false');
     autoReceiptsChk.addEventListener('change', () => localStorage.setItem(KEY, JSON.stringify(autoReceiptsChk.checked)));
     
+    // helper: green pill under editor for ~2s
+    function showCommitNotice(digest) {
+        const el = document.getElementById('commitNotice');
+        if (!el) return;
+        el.textContent = `Committed ✓ Digest: ${String(digest).slice(0, 10)}…`;
+        el.classList.add('show');
+        clearTimeout(el._t);
+        el._t = setTimeout(() => {
+            el.classList.remove('show');
+            el.textContent = '';
+        }, 2000);
+    }
+
     // Focus mode toggle with escape mechanisms
     const focusToggle = document.getElementById('focusToggle');
     const FOCUS_KEY = 'hbuk:focus';
@@ -47,9 +59,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Escape') setFocus(false); 
         });
         
-        // Top hover reveal zone (already in HTML)
+            // Top hover reveal zone (already in HTML)
+    const reveal = document.getElementById('focus-reveal');
+    reveal?.addEventListener('mouseenter', () => setFocus(false));
+    
+    // focus escape strip (once)
+    (() => {
         const reveal = document.getElementById('focus-reveal');
-        reveal?.addEventListener('mouseenter', () => setFocus(false));
+        if (reveal) reveal.addEventListener('mouseenter', () => {
+            document.body.classList.remove('focus');
+            localStorage.setItem('hbuk:focus', '0');
+        });
+    })();
         
         // URL override: ?focus=off
         const params = new URLSearchParams(location.search);
@@ -63,18 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize focus mode
     initFocus();
     
-    // Cmd/Ctrl + Enter commits (dock in focus, regular otherwise)
+    // Cmd/Ctrl + Enter commits (uses the single commit button)
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            (document.body.classList.contains('focus') ? commitDockBtn : commitButton)?.click();
+            commitButton?.click();
         }
         if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName || '')) {
             focusToggle?.click();
         }
     });
-
-    // Dock mirrors the main commit button
-    commitDockBtn?.addEventListener('click', () => commitButton?.click());
     
     // Focus editor
     editor?.focus();
@@ -260,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Backend response:', savedEntry);
 
                 // Show the commit receipt with digest
-                showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
+                showCommitNotice(savedEntry.digest);  // ⬅ green pill under editor
 
                 // Download receipt only if auto-receipts is enabled
                 const autoReceiptsOn = JSON.parse(localStorage.getItem('hbuk:autoReceipts') ?? 'false');

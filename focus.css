@@ -1,41 +1,25 @@
-/* Pure canvas */
-body.focus { background:#fff !important; }
+/* Pure canvas feel */
+body.focus { background: #fff !important; }
 
-/* Hide chrome while focused */
+/* Hide chrome while focused (header + history + extras) */
 body.focus .appbar,
 body.focus #entries,
 body.focus .export-row,
-body.focus .footer { display:none !important; }
+body.focus .footer { display: none !important; }
 
-/* Hide the normal commit row in focus */
-body.focus .commitRow { display:none !important; }
+/* Keep editor centered and roomy */
+body.focus .container { max-width: 860px; margin: 0 auto; }
+body.focus .editor-wrap { padding: 0 !important; }
 
-/* Keep editor centered and anchor point for the dock */
-body.focus .container { max-width:860px; margin:0 auto; }
-body.focus .editor-wrap { padding:0 !important; position:relative; }
-
-/* ✅ Dock lives in the editor's bottom-right corner in focus mode */
-#floatingCommit{
-  position:absolute;               /* was: fixed */
-  right: 12px;                     /* corner placement */
-  bottom: 12px;
-  display:none;                    /* default off */
-  justify-content:center; align-items:center;
-  gap:12px; padding:10px 14px;
-  background:#fff;
-  border:1px solid #eee;
-  border-radius: 999px;
-  box-shadow:0 2px 12px rgba(0,0,0,.08);
-  z-index:1000;                    /* above editor chrome */
+/* Top 8px escape strip (hover to exit) */
+#focus-reveal {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 8px;
+  z-index: 1000;
+  display: none;
 }
-body.focus #floatingCommit{ display:flex !important; }
+body.focus #focus-reveal { display: block; }
 
-/* 8px escape strip at top */
-#focus-reveal{
-  position:fixed; top:0; left:0; right:0; height:8px;
-  z-index:2147483001; display:none;
-}
-body.focus #focus-reveal{ display:block; }
-
-/* ✅ The green "Committed ✓ …" stays visible in focus */
-body.focus #notif { display:block !important; }
+/* Make sure the commit button remains visible in focus */
+body.focus #commitBtn.commit { display: inline-flex !important; }

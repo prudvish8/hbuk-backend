@@ -27,17 +27,10 @@
             <textarea id="editor" placeholder="Begin..."></textarea>
             <div class="word-count" id="wordCount">0 words</div>
 
-            <!-- ✅ Floating commit button *inside* the editor area -->
-            <div id="floatingCommit">
-                <button id="commitDockBtn" class="commit">Commit ↵</button>
-            </div>
-        </div>
+            <!-- Green commit pill appears here for ~2s after commit -->
+            <div id="commitNotice" role="status" aria-live="polite"></div>
 
-        <!-- ✅ Keep the green status patch visible even in focus mode -->
-        <div id="notif" class="notif" aria-live="polite"></div>
-
-        <!-- normal row (hidden in focus mode) -->
-        <div class="commitRow">
+            <!-- The only commit button -->
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
 

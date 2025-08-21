@@ -25,13 +25,21 @@ body{
 .btn.subtle{background:#f9fafb}
 .check{display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:14px}
 
-/* Layout */
-.container{
-  max-width:var(--maxw);
-  margin:12px auto; padding:0 var(--pad) 48px;
+/* --- Layout: keep header and editor the same width --- */
+.container { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+
+.appbar { position: sticky; top: 0; z-index: 100; }
+.appbar .bar {                 /* header content matches editor width */
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-/* Editor */
+/* --- Editor block provides anchors for the button + notice --- */
+.editor-wrap { position: relative; margin-bottom: 88px; } /* room for button+pill */
 #editor{
   width:100%; min-height:220px; resize:vertical;
   border:1px solid var(--border); border-radius:var(--radius);
@@ -42,14 +50,27 @@ body{
 }
 #editor::placeholder{color:#9ca3af}
 
-/* Commit row */
-.commitRow{
-  display:flex; justify-content:space-between; align-items:center; margin-top:10px; margin-bottom:18px;
+/* Commit button fixed to bottom-right of the editor box */
+#commitBtn.commit {
+  position: absolute;
+  right: 16px;
+  bottom: -42px;      /* slightly outside the textarea */
 }
-.commit{
-  background:#111827; color:#fff; border:none; padding:10px 16px;
-  border-radius:999px; cursor:pointer; font-weight:600;
+
+/* The green "Committed ✓ Digest …" pill under the editor */
+#commitNotice {
+  position: absolute;
+  left: 0;
+  bottom: -44px;
+  display: none;                 /* shown by JS for ~2s */
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #b6f2c1;
+  background: #e6ffed;
+  color: #0a5a2b;
+  font-size: 14px;
 }
+#commitNotice.show { display: inline-block; }
 
 /* Focus mode - hide chrome elements */
 .focus .chrome{display:none}
