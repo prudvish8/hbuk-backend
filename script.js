@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             const activeBtn = document.body.classList.contains('focus')
-              ? document.getElementById('commit-dock-button')
+              ? document.getElementById('commitDockBtn')
               : commitButton;
             activeBtn?.click();
         }
