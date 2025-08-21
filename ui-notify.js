@@ -1,13 +1,11 @@
 // ui-notify.js — shared notification helper
-export function showNotification(text, type = 'info') {
-  console[type === 'error' ? 'error' : 'log']('[HBUK]', text);
+export function showNotification(message, type = 'info', ms = 2000) {
   const el = document.getElementById('notif');
-  if (el) {
-    el.textContent = text;
-    el.className = `notif ${type}`;
-  } else {
-    // Fallback, avoid crashing if no DOM slot
-    // eslint-disable-next-line no-alert
-    alert(text);
-  }
+  if (!el) return;
+  el.textContent = message;
+  el.className = `badge toast ${type} show`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => {
+    el.className = `badge toast ${type}`;
+  }, ms);
 }

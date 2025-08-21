@@ -144,3 +144,30 @@ body.focus .appbar, body.focus header { display: none; }
 .entry:hover .meta .digest{opacity:1}
 .entry .meta .actions{margin-left:auto; display:flex; gap:8px}
 .link{color:#2563eb; text-decoration:none; font-size:12.5px}
+
+/* Smaller black pill commit */
+#commitBtn.commit{
+  background:#0a1020;
+  color:#fff;
+  border:0;
+  font-weight:800;
+  font-size:18px;        /* was 20px */
+  line-height:1;
+  padding:12px 22px;     /* was 16px 28px */
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  box-shadow:0 10px 22px rgba(0,0,0,.16);
+  cursor:pointer;
+  transition:transform .06s ease, box-shadow .12s ease, background .2s ease;
+}
+#commitBtn.commit:active{
+  transform:translateY(1px);
+  box-shadow:0 6px 14px rgba(0,0,0,.18);
+}
+
+/* Optional: a touch smaller on very narrow screens */
+@media (max-width:480px){
+  #commitBtn.commit{ font-size:16px; padding:10px 18px; }
+}
