@@ -6,6 +6,10 @@ import { showNotification } from './ui-notify.js';
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('editor');
     const commitButton = document.getElementById('commitBtn');
+    const dockBtn = document.getElementById('commit-dock-button');
+    if (dockBtn) {
+      dockBtn.addEventListener('click', () => commitButton.click());
+    }
     const historyContainer = document.getElementById('entries');
     const autoReceiptsChk = document.getElementById('autoReceiptsChk');
     const localDraftKey = 'hbuk_local_draft';

@@ -19,13 +19,13 @@ body.focus .editor-wrap { padding: 0 !important; }
 #floatingCommit {
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  display: none !important;       /* ← was 'display: none' — make it win */
+  display: none !important;          /* default off */
   justify-content: center;
   gap: 12px;
   padding: 12px 16px;
   background: #fff;
   border-top: 1px solid #eee;
-  z-index: 1000;
+  z-index: 2147483000;               /* ← sit above Netlify drawer */
 }
 body.focus #floatingCommit { display: flex !important; }
 
