@@ -36,11 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Escape') setFocus(false); 
         });
         
-        // Top hover reveal zone
-        const reveal = document.createElement('div');
-        reveal.id = 'focus-reveal';
-        reveal.addEventListener('mouseenter', () => setFocus(false));
-        document.body.appendChild(reveal);
+        // Top hover reveal zone (already in HTML)
+        const reveal = document.getElementById('focus-reveal');
+        reveal?.addEventListener('mouseenter', () => setFocus(false));
         
         // URL override: ?focus=off
         const params = new URLSearchParams(location.search);
@@ -57,8 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            const activeBtn = document.body.classList.contains('focus') ? 
-                document.getElementById('commitDockBtn') : commitButton;
+            const activeBtn = document.body.classList.contains('focus')
+              ? document.getElementById('commit-dock-button')
+              : commitButton;
             activeBtn?.click();
         }
         if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
@@ -459,45 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
-// ---------- Focus mode ----------
-(function setupFocus() {
- const FOCUS_KEY = 'hbuk:focus';
 
- function setFocus(on) {
-   document.body.classList.toggle('focus', !!on);
-   localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
- }
-
- // restore saved state
- if (localStorage.getItem(FOCUS_KEY) === '1') setFocus(true);
-
- // wire the header toggle (button text usually "Focus"/"Show")
- const focusBtn = document.querySelector('.appbar [data-focus-toggle]') ||
-                  document.querySelector('.appbar button:has(>span:contains("Focus"))') ||
-                  document.querySelector('.appbar button'); // fallback
- focusBtn && focusBtn.addEventListener('click', () => {
-   setFocus(!document.body.classList.contains('focus'));
- });
-
- // Esc exits focus
- window.addEventListener('keydown', (e) => {
-   if (e.key === 'Escape') setFocus(false);
- });
-
- // Hover strip exits focus
- const reveal = document.createElement('div');
- reveal.id = 'focus-reveal';
- reveal.title = 'Exit focus';
- reveal.addEventListener('mouseenter', () => setFocus(false));
- document.body.appendChild(reveal);
-
- // Bottom commit mirrors the main commit button
- const dockBtn = document.getElementById('commit-dock-button');
- dockBtn && dockBtn.addEventListener('click', () => {
-   (document.querySelector('button.commit') ||
-    document.querySelector('button[type="submit"]'))?.click();
- });
-})();
 
 // ---------- Copy UX (digest chip + full entry) ----------
 // Keep a map of entries you fetched/created
