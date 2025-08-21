@@ -232,14 +232,14 @@ app.get('/health/db', async (_req, res) => {
 });
 
 app.post('/api/register', validate(registerSchema), async (req, res) => {
-  try {
+    try {
     const { email, password } = req.body || {};
     
 
 
     // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
     
     // Atomic insert - let MongoDB handle uniqueness
     const result = await db.collection('users').insertOne({ 
@@ -295,11 +295,11 @@ app.post('/api/register', validate(registerSchema), async (req, res) => {
     }
     console.error('Registration error:', e);
     return res.status(500).json({ error: 'Internal server error' });
-  }
+    }
 });
 
 app.post('/api/login', validate(loginSchema), async (req, res) => {
-  try {
+    try {
     const { email, password } = req.body || {};
     
 
@@ -592,11 +592,11 @@ app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
   } catch (e) {
     console.error('proof error:', e);
     res.status(500).json({ error: 'Internal server error' });
-  }
+    }
 });
 
 app.get('/api/entries', authenticateToken, async (req, res) => {
-  try {
+    try {
     const userId = new ObjectId(req.user.sub);
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
     const cursorId = req.query.cursor ? new ObjectId(req.query.cursor) : null;
@@ -632,7 +632,7 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
   } catch (e) {
     console.error('entries error:', e);
     res.status(500).json({ error: 'Internal server error' });
-  }
+    }
 });
 
 // --- SERVER STARTUP ---

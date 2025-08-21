@@ -1,0 +1,25 @@
+/* Pure canvas feel */
+body.focus { background: #fff !important; }
+
+/* Hide chrome while focused (header + history + extras) */
+body.focus .appbar,
+body.focus #entries,
+body.focus .export-row,
+body.focus .footer { display: none !important; }
+
+/* Keep editor centered and roomy */
+body.focus .container { max-width: 860px; margin: 0 auto; }
+body.focus .editor-wrap { padding: 0 !important; }
+
+/* Top 8px escape strip (hover to exit) */
+#focus-reveal {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 8px;
+  z-index: 1000;
+  display: none;
+}
+body.focus #focus-reveal { display: block; }
+
+/* Make sure the commit button remains visible in focus */
+body.focus #commitBtn.commit { display: inline-flex !important; }
