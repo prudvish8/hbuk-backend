@@ -1,0 +1,27 @@
+[build]
+  publish = "."
+  command = "echo 'Frontend deployment - no build step needed'"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://hbuk-backend-hvow.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/health"
+  to = "https://hbuk-backend-hvow.onrender.com/health"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/version"
+  to = "https://hbuk-backend-hvow.onrender.com/version"
+  status = 200
+  force = true
+
+# Serve index.html for all routes (SPA behavior)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
