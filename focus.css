@@ -10,22 +10,23 @@ body.focus .footer { display:none !important; }
 /* Hide the normal commit row in focus */
 body.focus .commitRow { display:none !important; }
 
-/* Keep editor centered */
+/* Keep editor centered and anchor point for the dock */
 body.focus .container { max-width:860px; margin:0 auto; }
-body.focus .editor-wrap { padding:0 !important; }
+body.focus .editor-wrap { padding:0 !important; position:relative; }
 
-/* Use the existing bar (#floatingCommit) as the single control */
+/* ✅ Dock lives in the editor's bottom-right corner in focus mode */
 #floatingCommit{
-  position:fixed !important;
-  left:0 !important; right:0 !important; bottom:0 !important;
-  display:none !important;                 /* default off */
+  position:absolute;               /* was: fixed */
+  right: 12px;                     /* corner placement */
+  bottom: 12px;
+  display:none;                    /* default off */
   justify-content:center; align-items:center;
-  gap:12px; padding:14px 16px;
-  background:#fff !important;
-  border-top:1px solid #eee !important;
-  box-shadow:0 -4px 12px rgba(0,0,0,.08) !important;
-  z-index:2147483000 !important;           /* above Netlify drawer */
-  min-height:56px;
+  gap:12px; padding:10px 14px;
+  background:#fff;
+  border:1px solid #eee;
+  border-radius: 999px;
+  box-shadow:0 2px 12px rgba(0,0,0,.08);
+  z-index:1000;                    /* above editor chrome */
 }
 body.focus #floatingCommit{ display:flex !important; }
 
@@ -35,3 +36,6 @@ body.focus #floatingCommit{ display:flex !important; }
   z-index:2147483001; display:none;
 }
 body.focus #focus-reveal{ display:block; }
+
+/* ✅ The green "Committed ✓ …" stays visible in focus */
+body.focus #notif { display:block !important; }

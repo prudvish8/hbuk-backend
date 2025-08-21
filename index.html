@@ -12,28 +12,32 @@
 </head>
 <body>
     <header class="appbar chrome">
-        <div class="appbar-content">
-            <h1>Hbuk</h1>
-            <div class="appbar-actions">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="autoReceiptsChk">
-                    <span>Auto-receipts</span>
-                </label>
-                <button id="focusToggle" class="btn secondary" title="Focus mode (F)">Focus</button>
-                <button id="exportAllBtn" class="btn secondary">📥 Export All</button>
-                <button id="logoutBtn" class="btn secondary">Logout</button>
-            </div>
+        <div class="bar">
+            <div class="brand">hbuk</div>
+            <div class="spacer"></div>
+            <button id="exportAllBtn" class="btn">📥 Export All</button>
+            <label class="check"><input type="checkbox" id="autoReceiptsChk"> Auto receipts</label>
+            <button id="focusToggle" class="btn" title="Focus mode (F)">Focus</button>
+            <button id="logoutBtn" class="btn subtle">Logout</button>
         </div>
     </header>
 
     <main class="container">
-        <div class="editor-wrap" style="position:relative;">
+        <div class="editor-wrap">
             <textarea id="editor" placeholder="Begin..."></textarea>
             <div class="word-count" id="wordCount">0 words</div>
+
+            <!-- ✅ Floating commit button *inside* the editor area -->
+            <div id="floatingCommit">
+                <button id="commitDockBtn" class="commit">Commit ↵</button>
+            </div>
         </div>
 
+        <!-- ✅ Keep the green status patch visible even in focus mode -->
+        <div id="notif" class="notif" aria-live="polite"></div>
+
+        <!-- normal row (hidden in focus mode) -->
         <div class="commitRow">
-            <span id="notif" class="badge" aria-live="polite"></span>
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
 
@@ -44,12 +48,6 @@
     <script type="module" src="api-utils.js"></script>
     <script type="module" src="script.js"></script>
 
-    <!-- Hover strip so Esc/hover can exit focus -->
     <div id="focus-reveal"></div>
-
-    <!-- Floating commit bar (shown only in focus) -->
-    <div id="floatingCommit">
-        <button id="commitDockBtn" class="commit">Commit ↵</button>
-    </div>
 </body>
 </html>

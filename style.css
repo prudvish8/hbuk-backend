@@ -10,14 +10,11 @@ body{
 }
 
 /* Header */
-.appbar{
-  position:sticky; top:0; z-index:10;
-  backdrop-filter: blur(6px);
-  background:#fffddde0; border-bottom:1px solid var(--border);
-}
+.appbar.chrome { background: #fff7ca; }           /* pale yellow strip like before */
 .appbar .bar{
-  max-width:var(--maxw); margin:0 auto; padding:10px var(--pad);
-  display:flex; align-items:center; gap:10px;
+  max-width: 980px; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px;
+  height: 52px; padding: 0 12px;
 }
 .brand{font-weight:700; letter-spacing:.2px}
 .spacer{flex:1}
