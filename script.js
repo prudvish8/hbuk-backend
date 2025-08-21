@@ -69,12 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Focus editor
     editor?.focus();
     
-    // Bottom dock commits by delegating to the normal button
-    const dockBtn = document.getElementById('commitDockBtn');
-    const mainBtn = document.getElementById('commitBtn');
-    if (dockBtn && mainBtn) {
-        dockBtn.addEventListener('click', () => mainBtn.click());
-    }
+
     
     // Global entries array to store all entries
     let entries = [];
@@ -464,55 +459,66 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
-// ---- Focus mode init (robust) ----
+// ---------- Focus mode: robust init with delegation ----------
 (function initFocus() {
-  const q = (id) => document.getElementById(id);
-  const $btn = q('focusToggle') || q('focusBtn'); // support either id
-
-  // return a style object or null (never throw)
-  const styleOf = (el) => (el && el.style ? el.style : null);
+  const $ = (id) => document.getElementById(id);
+  const safeStyle = (el) => (el && el.style) ? el.style : null;
 
   window.setFocus = function (on) {
     const isOn = !!on;
+    console.log('[HBUK] setFocus ->', isOn);
     document.body.classList.toggle('focus', isOn);
-    localStorage.setItem('hbuk:focus', isOn ? '1' : '0');
+    try { localStorage.setItem('hbuk:focus', isOn ? '1' : '0'); } catch {}
 
-    // show/hide bottom dock if present
-    const dock = styleOf(q('commitDock'));
+    // show/hide bottom dock safely
+    const dock = safeStyle($('commitDock'));
     if (dock) dock.display = isOn ? 'flex' : 'none';
 
-    // show/hide hover strip if present
-    const strip = styleOf(q('focus-reveal'));
+    // reveal strip for exit
+    const strip = safeStyle($('focus-reveal'));
     if (strip) strip.display = isOn ? 'block' : 'none';
 
-    // hide any legacy left-side button if it still exists
-    const legacy = styleOf(q('floatingCommit'));
+    // if a legacy floating commit exists, keep it hidden
+    const legacy = safeStyle($('floatingCommit'));
     if (legacy) legacy.display = 'none';
   };
 
-  // Build the hover strip if missing
-  if (!q('focus-reveal')) {
+  // ensure reveal strip exists
+  if (!$('focus-reveal')) {
     const div = document.createElement('div');
     div.id = 'focus-reveal';
-    div.style.cssText =
-      'position:fixed;top:0;left:0;right:0;height:8px;z-index:9999;display:none;cursor:ns-resize;';
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;height:8px;z-index:9999;display:none;cursor:ns-resize;';
     div.addEventListener('mouseenter', () => setFocus(false));
     document.body.appendChild(div);
   }
 
-  // Toggle on click
-  if ($btn) {
-    $btn.addEventListener('click', () =>
-      setFocus(!document.body.classList.contains('focus'))
-    );
-  }
-
-  // Esc to exit
+  // ESC to exit
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') setFocus(false);
   });
 
-  // Restore last state
+  // DELEGATED clicks (works even if the header is re-rendered)
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+
+    // Focus chip
+    if (t.closest('#focusToggle')) {
+      e.preventDefault();
+      console.log('[HBUK] Focus clicked (delegated)');
+      setFocus(!document.body.classList.contains('focus'));
+      return;
+    }
+
+    // Bottom dock commit
+    if (t.closest('#commitDockBtn')) {
+      e.preventDefault();
+      const btn = $('commitBtn') || t.closest('button');
+      if (btn && typeof btn.click === 'function') btn.click(); // reuse existing commit logic
+      return;
+    }
+  }, { passive: true });
+
+  // restore persisted state
   if (localStorage.getItem('hbuk:focus') === '1') setFocus(true);
 })();
 
