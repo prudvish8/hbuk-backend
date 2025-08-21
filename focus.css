@@ -1,38 +1,37 @@
-/* Force a pure canvas feel in focus */
-body.focus { background: #fff !important; }
+/* Pure canvas */
+body.focus { background:#fff !important; }
 
 /* Hide chrome while focused */
 body.focus .appbar,
 body.focus #entries,
 body.focus .export-row,
-body.focus .toast,
-body.focus .footer,
-body.focus .commitRow {           /* ← hide the top commit row in focus */
-  display: none !important;
-}
+body.focus .footer { display:none !important; }
 
-/* Keep the editor centered, no extra padding */
-body.focus .container { max-width: 860px; margin: 0 auto; }
-body.focus .editor-wrap { padding: 0 !important; }
+/* Hide the normal commit row in focus */
+body.focus .commitRow { display:none !important; }
 
-/* Use existing bar (#floatingCommit) as the single control */
-#floatingCommit {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  display: none !important;          /* default off */
-  justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #fff;
-  border-top: 1px solid #eee;
-  z-index: 2147483000;               /* ← sit above Netlify drawer */
+/* Keep editor centered */
+body.focus .container { max-width:860px; margin:0 auto; }
+body.focus .editor-wrap { padding:0 !important; }
+
+/* Use the existing bar (#floatingCommit) as the single control */
+#floatingCommit{
+  position:fixed !important;
+  left:0 !important; right:0 !important; bottom:0 !important;
+  display:none !important;                 /* default off */
+  justify-content:center; align-items:center;
+  gap:12px; padding:14px 16px;
+  background:#fff !important;
+  border-top:1px solid #eee !important;
+  box-shadow:0 -4px 12px rgba(0,0,0,.08) !important;
+  z-index:2147483000 !important;           /* above Netlify drawer */
+  min-height:56px;
 }
-body.focus #floatingCommit { display: flex !important; }
+body.focus #floatingCommit{ display:flex !important; }
 
 /* 8px escape strip at top */
-#focus-reveal {
- position: fixed;
- top: 0; left: 0; right: 0;
- height: 8px; z-index: 1001; display: none;
+#focus-reveal{
+  position:fixed; top:0; left:0; right:0; height:8px;
+  z-index:2147483001; display:none;
 }
-body.focus #focus-reveal { display: block; }
+body.focus #focus-reveal{ display:block; }

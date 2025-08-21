@@ -3,28 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>hbuk</title>
+    <title>Hbuk - Journal</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="notifications.css">
-    <link rel="stylesheet" href="focus.css" />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <style>
-      .notif{margin:12px 0;padding:10px;border-radius:8px;background:#f4f4f5}
-      .notif.success{background:#e6ffed}
-      .notif.error{background:#ffecec}
-    </style>
+    <!-- focus.css MUST come after style.css so it can override -->
+    <link rel="stylesheet" href="focus.css">
 </head>
 <body>
     <header class="appbar chrome">
-        <div class="bar">
-            <div class="brand">hbuk</div>
-            <div class="spacer"></div>
-            <button id="exportAllBtn" class="btn">📥 Export All</button>
-            <label class="check">
-                <input type="checkbox" id="autoReceiptsChk"> Auto receipts
-            </label>
-            <button id="focusToggle" class="btn" title="Focus mode (F)">Focus</button>
-            <button id="logoutBtn" class="btn subtle">Logout</button>
+        <div class="appbar-content">
+            <h1>Hbuk</h1>
+            <div class="appbar-actions">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="autoReceiptsChk">
+                    <span>Auto-receipts</span>
+                </label>
+                <button id="focusToggle" class="btn secondary" title="Focus mode (F)">Focus</button>
+                <button id="exportBtn" class="btn secondary">Export All</button>
+                <button id="logoutBtn" class="btn secondary">Logout</button>
+            </div>
         </div>
     </header>
 
@@ -33,28 +30,25 @@
             <textarea id="editor" placeholder="Begin..."></textarea>
             <div class="word-count" id="wordCount">0 words</div>
         </div>
+
         <div class="commitRow">
             <span id="notif" class="badge" aria-live="polite"></span>
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
-        
-
 
         <section id="entries"></section>
     </main>
 
-    <!-- Optional: Override API base for production -->
-    <script>window.API_BASE = 'https://hbuk-backend-hvow.onrender.com';</script>
-    
+    <script>window.API_BASE='https://hbuk-backend-hvow.onrender.com';</script>
     <script type="module" src="api-utils.js"></script>
     <script type="module" src="script.js"></script>
 
     <!-- Hover strip so Esc/hover can exit focus -->
     <div id="focus-reveal"></div>
 
-    <!-- Floating commit bar (only visible in focus mode) -->
+    <!-- Floating commit bar (shown only in focus) -->
     <div id="floatingCommit">
-      <button id="commitDockBtn">Commit</button>
+        <button id="commitDockBtn" class="commit">Commit ↵</button>
     </div>
 </body>
 </html>
