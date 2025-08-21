@@ -17,15 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Focus mode toggle with escape mechanisms
     const focusToggle = document.getElementById('focusToggle');
-    const floatingCommit = document.getElementById('floatingCommit');
-    const floatingCommitBtn = document.getElementById('floatingCommitBtn');
     const FOCUS_KEY = 'hbuk:focus';
     
     function setFocus(on) {
         document.body.classList.toggle('focus', !!on);
         localStorage.setItem(FOCUS_KEY, on ? '1' : '0');
         const isFocus = document.body.classList.contains('focus');
-        floatingCommit.style.display = isFocus ? 'block' : 'none';
         focusToggle.textContent = isFocus ? 'Show' : 'Focus';
         focusToggle.title = isFocus ? 'Show interface (F)' : 'Focus mode (F)';
     }
@@ -60,18 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Keyboard shortcuts: F for focus mode, Cmd/Ctrl+Enter to commit
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-            const activeBtn = document.body.classList.contains('focus') ? floatingCommitBtn : commitButton;
+            const activeBtn = document.body.classList.contains('focus') ? 
+                document.getElementById('commitDockBtn') : commitButton;
             activeBtn?.click();
         }
         if (e.key.toLowerCase() === 'f' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
             focusToggle?.click();
         }
     });
-    
-    // Wire up floating commit button
-    if (floatingCommitBtn) {
-        floatingCommitBtn.onclick = () => commitButton?.click();
-    }
     
     // Focus editor
     editor?.focus();
@@ -464,10 +457,28 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
+// Helpers so we never crash if an element is missing
+function styleOf(id) {
+  const el = document.getElementById(id);
+  return el && el.style ? el.style : null;
+}
+
 // ---- Focus helpers (safe, class-only) ----
 function setFocus(on) {
-  document.body.classList.toggle('focus', !!on);
-  localStorage.setItem('hbuk:focus', on ? '1' : '0');
+  const isOn = !!on;
+  document.body.classList.toggle('focus', isOn);
+  localStorage.setItem('hbuk:focus', isOn ? '1' : '0');
+
+  // Safely toggle optional UI bits (only if present)
+  const dock = styleOf('commitDock');      // bottom dock
+  if (dock) dock.display = isOn ? 'flex' : 'none';
+
+  const strip = styleOf('focus-reveal');   // top hover strip
+  if (strip) strip.display = isOn ? 'block' : 'none';
+
+  // Hide any legacy left-side button if it exists
+  const legacy = styleOf('floatingCommit');
+  if (legacy) legacy.display = 'none';
 }
 
 function restoreFocusFromStorage() {
