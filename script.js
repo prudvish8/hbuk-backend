@@ -464,27 +464,42 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
-// ---------- Focus mode ----------
-// focus helpers
+// ---- Focus helpers (safe, class-only) ----
 function setFocus(on) {
   document.body.classList.toggle('focus', !!on);
   localStorage.setItem('hbuk:focus', on ? '1' : '0');
 }
+
 function restoreFocusFromStorage() {
   if (localStorage.getItem('hbuk:focus') === '1') setFocus(true);
 }
-restoreFocusFromStorage();
-window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') setFocus(false); });
-document.getElementById('focus-reveal')?.addEventListener('mouseenter', ()=> setFocus(false));
 
-// Focus button in the header should toggle this
-document.getElementById('focusToggle')?.addEventListener('click', ()=>{
-  setFocus(!document.body.classList.contains('focus'));
+document.addEventListener('DOMContentLoaded', () => {
+  // Header button that toggles focus
+  const focusBtn = document.getElementById('focusToggle');   // <- using your existing id
+  if (focusBtn) {
+    focusBtn.addEventListener('click', () => {
+      setFocus(!document.body.classList.contains('focus'));
+      // Optionally flip button label between "Focus"/"Show"
+      focusBtn.textContent = document.body.classList.contains('focus') ? 'Show' : 'Focus';
+    });
+  }
+
+  // Hover strip to exit focus
+  const reveal = document.getElementById('focus-reveal');
+  if (reveal) reveal.addEventListener('mouseenter', () => setFocus(false));
+
+  // Bottom dock commits by delegating to the normal button
+  const dockBtn   = document.getElementById('commitDockBtn');
+  const mainBtn   = document.getElementById('commitBtn'); // your existing black button
+  if (dockBtn && mainBtn) dockBtn.addEventListener('click', () => mainBtn.click());
+
+  restoreFocusFromStorage();
 });
 
-// bottom dock uses the SAME commit handler as the main button
-document.getElementById('commitDockBtn')?.addEventListener('click', ()=>{
-  document.getElementById('commitBtn')?.click();
+// ESC exits focus
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setFocus(false);
 });
 
 // ---------- Copy UX (digest chip + full entry) ----------
