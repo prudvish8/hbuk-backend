@@ -1,11 +1,24 @@
-// ui-notify.js — shared notification helper
-export function showNotification(message, type = 'info', ms = 2000) {
-  const el = document.getElementById('notif');
-  if (!el) return;
+// ui-notify.js
+// Write lightweight, fade-out confirmations to the same green pill area.
+// No browser alerts, ever.
+
+export function showNotification(message, type = 'success', ms = 1800) {
+  // Prefer the commit pill area; fall back to an optional #notif
+  const el =
+    document.getElementById('commitNotice') ||
+    document.getElementById('notif');
+
+  if (!el) return; // no popups
+
+  // base class must be "notif" (your CSS already styles .notif, .success, .error, .show)
+  el.className = `notif ${type}`;
   el.textContent = message;
-  el.className = `badge toast ${type} show`;
+
+  // show then fade
+  el.classList.add('show');
   clearTimeout(el._t);
   el._t = setTimeout(() => {
-    el.className = `badge toast ${type}`;
+    el.classList.remove('show');
+    el.textContent = '';
   }, ms);
 }

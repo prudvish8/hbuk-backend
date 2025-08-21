@@ -500,21 +500,36 @@ function rememberEntry(e) {
 
 // Single event-delegated handler (works for all entries)
 document.addEventListener('click', async (ev) => {
+  // Copy full digest when clicking the chip
   const chip = ev.target.closest('.digest-chip');
   if (chip) {
-    try { await navigator.clipboard.writeText(chip.dataset.digest); }
-    catch (e) { console.warn('Copy digest failed', e); }
+    try {
+      await navigator.clipboard.writeText(chip.dataset.digest);
+      showNotification('Digest copied ✓', 'success', 2000); // green patch, 2s
+    } catch (e) {
+      console.warn('Copy digest failed', e);
+      showNotification('Could not copy digest', 'error', 2000);
+    }
     return;
   }
 
+  // Copy full entry JSON when clicking "Copy"
   const copyBtn = ev.target.closest('.copy-entry');
   if (copyBtn) {
     const host = copyBtn.closest('[data-entry-id]');
     const id = host?.dataset.entryId;
     const obj = window.ENTRIES_BY_ID?.get(id);
-    if (!obj) return;
-    try { await navigator.clipboard.writeText(JSON.stringify(obj, null, 2)); }
-    catch (e) { console.warn('Copy entry failed', e); }
+    if (!obj) {
+      showNotification('Could not find entry data', 'error', 2000);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+      showNotification('Entry JSON copied ✓', 'success', 2000); // green patch, 2s
+    } catch (e) {
+      console.warn('Copy entry failed', e);
+      showNotification('Could not copy entry', 'error', 2000);
+    }
     return;
   }
 });
