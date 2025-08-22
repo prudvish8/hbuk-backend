@@ -39,7 +39,11 @@ body{
 }
 
 /* --- Editor block provides anchors for the button + notice --- */
-.editor-wrap { position: relative; margin-bottom: 88px; } /* room for button+pill */
+.editor-wrap { 
+  position: relative; 
+  margin-bottom: 96px;           /* room for button + green pill under the box */
+}
+
 #editor{
   width:100%; min-height:220px; resize:vertical;
   border:1px solid var(--border); border-radius:var(--radius);
@@ -50,49 +54,52 @@ body{
 }
 #editor::placeholder{color:#9ca3af}
 
-/* Commit button fixed to bottom-right of the editor box */
-#commitBtn.commit {
+/* Commit button: pill at bottom-right of the editor box */
+#commitBtn {
   position: absolute;
-  right: 16px;
-  bottom: -42px;      /* slightly outside the textarea */
+  right: 10px;
+  bottom: -56px;                 /* outside the textarea box */
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: #0b1324;
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(0,0,0,.18);
+  transition: transform .12s ease, opacity .12s ease;
 }
+#commitBtn:hover { transform: translateY(-1px); }
 
-/* The green "Committed ✓ Digest …" pill under the editor */
+/* Green confirmation pill: left-aligned under the editor */
 #commitNotice {
   position: absolute;
   left: 0;
-  bottom: -44px;
-  display: none;                 /* shown by JS for ~2s */
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #b6f2c1;
-  background: #e6ffed;
-  color: #0a5a2b;
+  bottom: -58px;                 /* same baseline as button */
+  max-width: calc(100% - 180px); /* leave space for button on the right */
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e7f6ea;          /* green patch */
+  color: #0f6b2b;
   font-size: 14px;
+  line-height: 1.2;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .2s ease, transform .2s ease;
 }
-#commitNotice.show { display: inline-block; }
+#commitNotice.show { opacity: 1; transform: translateY(0); }
 
-/* Big round black commit button */
-#commitBtn.commit {
-  border: 0;
-  background: #0a1020;      /* deep navy/black */
-  color: #fff;
-  font-weight: 800;
-  font-size: 20px;
-  line-height: 1;
-  padding: 16px 28px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.18);
-  cursor: pointer;
-  transition: transform .06s ease, box-shadow .12s ease, background .2s ease;
-}
-#commitBtn.commit:active {
-  transform: translateY(1px);
-  box-shadow: 0 6px 16px rgba(0,0,0,.18);
-}
+/* Focus mode: keep them visible (we hide commitRow elsewhere) */
+body.focus #commitBtn,
+body.focus #commitNotice { display: block; }
+
+/* Make sure any old fixed dock can't interfere */
+#floatingCommit { display: none !important; }
 
 /* Focus mode - hide chrome elements */
 .focus .chrome{display:none}

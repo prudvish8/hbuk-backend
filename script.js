@@ -149,8 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const n = document.getElementById('commitNotice');
         if (!n) return;
         n.textContent = msg;
-        n.classList.add('show', 'success');
-        setTimeout(() => n.classList.remove('show', 'success'), ms);
+        n.classList.add('show');
+        clearTimeout(n._t);
+        n._t = setTimeout(() => n.classList.remove('show'), ms);
     }
 
     // --- JWT EXPIRY CHECKING ---
@@ -456,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function onExportPDF() {
         const entries = await fetchAllEntries();
         const { jsPDF } = window.jspdf || {};
-        if (!jsPDF) { alert('PDF library failed to load'); return; }
+        if (!jsPDF) { toastOk('PDF library failed to load', 3000); return; }
         const doc = new jsPDF({ unit: 'pt', format: 'a4' });
         const margin = 48, width = 595 - margin * 2;
         let y = margin;
@@ -564,7 +565,7 @@ document.addEventListener('click', async (ev) => {
   if (chip) {
     try {
       await navigator.clipboard.writeText(chip.dataset.digest);
-      showNotification('Digest copied ✓', 'success', 2000); // green patch, 2s
+      toastOk('Digest copied ✓', 2000); // green patch, 2s
     } catch (e) {
       console.warn('Copy digest failed', e);
       showNotification('Could not copy digest', 'error', 2000);
@@ -584,7 +585,7 @@ document.addEventListener('click', async (ev) => {
     }
     try {
       await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
-      showNotification('Entry JSON copied ✓', 'success', 2000); // green patch, 2s
+      toastOk('Entry JSON copied ✓', 2000); // green patch, 2s
     } catch (e) {
       console.warn('Copy entry failed', e);
       showNotification('Could not copy entry', 'error', 2000);
