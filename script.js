@@ -110,6 +110,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // Global entries array to store all entries
     let entries = [];
 
+    // ––––– Location helpers (pretty name + flag + friendly fallback) –––––
+    function stripTheCountry(name = '') {
+        return name
+            .replace(/\s*\(the\)$/i, '') // drop trailing "(the)"
+            .replace(/^United States of America$/i, 'United States')
+            .replace(/^United Kingdom of Great Britain and Northern Ireland$/i, 'United Kingdom');
+    }
+    function flagEmoji(alpha2) {
+        if (!alpha2 || alpha2.length !== 2) return '';
+        return String.fromCodePoint(...alpha2.toUpperCase().split('').map(c => 127397 + c.charCodeAt()));
+    }
+    function prettyLocationFromReverseGeo(g = {}) {
+        const city = g.locality || g.city || '';
+        const region = g.principalSubdivision || g.region || '';
+        const country = stripTheCountry(g.countryName || '');
+        const flag = flagEmoji(g.countryCode);
+        return [city, region, [flag, country].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    }
+    function prettyLocationStamp(entry) {
+        if (entry?.locationName) return stripTheCountry(entry.locationName);
+        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
+            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
+        }
+        return 'somewhere in the universe ✌️';
+    }
+
     // --- JWT EXPIRY CHECKING ---
     function computeDigestLocal({ userId, content, createdAt, location }) {
         const payload = JSON.stringify({
@@ -165,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const metaP = document.createElement('div');
             metaP.className = 'badge';
             const date = new Date(entry.createdAt || entry.timestamp);
-            const locationString = formatLocation(entry);
+            const locationString = prettyLocationStamp(entry);
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
             
             // Add digest display with copy and verify actions
@@ -243,14 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOCATION FORMATTING HELPER ---
-    function formatLocation(entry) {
-        if (entry?.locationName) return entry.locationName;
-        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
-            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
-        }
-        return 'Location not available';
-    }
+    // (formatLocation removed; replaced by prettyLocationStamp above)
 
     // --- DOWNLOAD RECEIPT FUNCTION ---
     function downloadReceipt(entry) {
@@ -357,20 +376,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const location = await getCurrentLocation();
             // 2. Get timestamp.
             const timestamp = new Date().toISOString();
-            // 3. Get location name.
-            let locationName = "Unknown Location";
+            // 3. Get location name (pretty + flag, or friendly fallback)
+            let locationName = 'somewhere in the universe ✌️';
             if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
                 try {
-                    const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
-                    const data = await geoResponse.json();
-                    const place = data.locality || data.city;
-                    locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
+                    const geoResponse = await fetch(
+                        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`
+                    );
+                    const g = await geoResponse.json();
+                    locationName = prettyLocationFromReverseGeo(g);
                 } catch (error) {
-                    console.error("Reverse geocoding failed:", error);
-                    locationName = "Location lookup failed";
+                    console.warn("Reverse geocoding failed:", error);
                 }
-            } else {
-                locationName = "Location not available";
             }
 
             // 4. Build the data package with only the fields we want to store.
@@ -429,8 +446,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Wire up export button in header
     const exportAllBtn = document.getElementById('exportAllBtn');
-    if (exportAllBtn) {
-        exportAllBtn.onclick = exportAllEntries;
+    exportAllBtn && (exportAllBtn.onclick = exportAllEntries);
+    
+    // ––– Export PDF (new) –––
+    document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
+    async function exportAllPdf() {
+        try {
+            // ensure we have entries; fetch if empty
+            if (!Array.isArray(entries) || !entries.length) {
+                const data = await apiRequest('/api/entries');
+                entries = data?.entries || [];
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            const left = 48;
+            let y = 56;
+            
+            doc.setFont('Helvetica', 'normal');
+            doc.setFontSize(14);
+            doc.text('hbuk export', left, y);
+            y += 20;
+            
+            for (const e of entries) {
+                const date = new Date(e.createdAt || e.timestamp).toLocaleString();
+                const where = prettyLocationStamp(e);
+                const header = `• ${date} — ${where}`;
+                const body = (e.content || e.text || '').replace(/\r\n/g, '\n');
+                
+                doc.setFontSize(11); doc.setTextColor(80);
+                doc.text(header, left, y); y += 16;
+                
+                doc.setFontSize(12); doc.setTextColor(20);
+                const lines = doc.splitTextToSize(body, 515);
+                for (const line of lines) {
+                    if (y > 760) { doc.addPage(); y = 56; }
+                    doc.text(line, left, y); y += 16;
+                }
+                y += 8;
+                if (y > 760) { doc.addPage(); y = 56; }
+            }
+            
+            doc.save('hbuk-export.pdf');
+            showNotification('Exported PDF ✓', 'success');
+        } catch (err) {
+            console.error('Export PDF error:', err);
+            showNotification('Export PDF failed', 'error');
+        }
     }
 
     // --- AUTHENTICATION UI MANAGEMENT ---
