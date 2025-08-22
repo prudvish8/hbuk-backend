@@ -95,6 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Wire export buttons
     wireExports();
     
+    // Ensure there is exactly one notice element *under the editor* (id="commitNotice")
+    const wrap = document.getElementById('editorWrap') || document.querySelector('.editor-wrap');
+    if(wrap){
+        let notice = document.getElementById('commitNotice');
+        if(!notice){
+            notice = document.createElement('div');
+            notice.id = 'commitNotice';
+            wrap.insertAdjacentElement('afterend', notice);
+        }
+    }
+    
     // Cmd/Ctrl + Enter commits (uses the single commit button)
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -145,13 +156,43 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${parts.join(', ')} ${flag}`.trim();
     }
     
-    function toastOk(msg, ms = 1800) {
+    // ---- unified green notice under editor ----
+    function showGreen(message){
         const n = document.getElementById('commitNotice');
-        if (!n) return;
-        n.textContent = msg;
+        if(!n) return;
+        n.textContent = message;
+        n.classList.remove('show');   // restart animation
+        // force reflow to replay CSS animation
+        // eslint-disable-next-line no-unused-expressions
+        n.offsetHeight;
         n.classList.add('show');
+        // hard hide after 2s to reset opacity for the next message
         clearTimeout(n._t);
-        n._t = setTimeout(() => n.classList.remove('show'), ms);
+        n._t = setTimeout(()=>{ n.classList.remove('show'); }, 2000);
+    }
+
+    // ---- bulletproof clipboard util (true on success) ----
+    async function copyToClipboard(text){
+        try{
+            await navigator.clipboard.writeText(text);
+            return true;
+        }catch(e){
+            // Fallback for exotic browsers/permissions
+            try{
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return !!ok;
+            }catch(_){
+                return false;
+            }
+        }
     }
 
     // --- JWT EXPIRY CHECKING ---
@@ -323,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Backend response:', savedEntry);
 
                 // Show the commit receipt with digest
-                showCommitNotice(savedEntry.digest);  // ⬅ green pill under editor
+                showGreen(`Committed ✓ Digest: ${savedEntry.digest.slice(0, 8)}…`);
 
                 // Download receipt only if auto-receipts is enabled
                 const autoReceiptsOn = JSON.parse(localStorage.getItem('hbuk:autoReceipts') ?? 'false');
@@ -451,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         a.download = `hbuk-entries-${new Date().toISOString().slice(0,10)}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
-        toastOk('Exported JSON ✓');
+        showGreen('Exported JSON ✓');
     }
 
     async function onExportPDF() {
@@ -481,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
             doc.text(bodyLines, margin, y); y += bodyLines.length * 14 + 12;
         });
         doc.save(`hbuk-entries-${new Date().toISOString().slice(0,10)}.pdf`);
-        toastOk('Exported PDF ✓');
+        showGreen('Exported PDF ✓');
     }
 
     function wireExports() {
@@ -563,13 +604,8 @@ document.addEventListener('click', async (ev) => {
   // Copy full digest when clicking the chip
   const chip = ev.target.closest('.digest-chip');
   if (chip) {
-    try {
-      await navigator.clipboard.writeText(chip.dataset.digest);
-      toastOk('Digest copied ✓', 2000); // green patch, 2s
-    } catch (e) {
-      console.warn('Copy digest failed', e);
-      showNotification('Could not copy digest', 'error', 2000);
-    }
+    const ok = await copyToClipboard(chip.dataset.digest);
+    showGreen(ok ? 'Digest copied ✓' : 'Could not copy digest');
     return;
   }
 
@@ -583,13 +619,8 @@ document.addEventListener('click', async (ev) => {
       showNotification('Could not find entry data', 'error', 2000);
       return;
     }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
-      toastOk('Entry JSON copied ✓', 2000); // green patch, 2s
-    } catch (e) {
-      console.warn('Copy entry failed', e);
-      showNotification('Could not copy entry', 'error', 2000);
-    }
+    const ok = await copyToClipboard(JSON.stringify(obj, null, 2));
+    showGreen(ok ? 'Entry JSON copied ✓' : 'Could not copy entry');
     return;
   }
 });

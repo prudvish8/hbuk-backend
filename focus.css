@@ -1,6 +1,58 @@
 /* Pure canvas feel */
 body.focus { background: #fff !important; }
 
+/* The editor wrapper must be the positioning context */
+#editorWrap, .editor-wrap {
+  position: relative;
+}
+
+/* Commit row sits directly under the editor and pushes content down */
+.commitRow{
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  position: relative;           /* stays with the editor */
+}
+
+/* Big black pill button anchored by the row (i.e., under editor, right) */
+.commitRow .commit,
+#commitBtn.commit{
+  appearance: none;
+  border: 0;
+  background: #0b1220;
+  color: #fff;
+  padding: 12px 22px;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .2s ease;
+}
+.commitRow .commit:hover{ transform: translateY(-1px); }
+.commitRow .commit:active{ transform: translateY(0); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+
+/* The single green notice lives *under the editor*; never fixed */
+#commitNotice{
+  position: static;             /* important: not fixed */
+  display: none;
+  margin-top: 12px;
+  width: fit-content;
+  background: #e7f7ea;          /* soft green */
+  border: 1px solid #c7efcf;
+  color: #155e2d;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+#commitNotice.show{ display: inline-block; animation: fadeOut 0.3s ease forwards 1.7s; }
+@keyframes fadeOut { to { opacity: 0; } }
+
+/* Focus mode keeps the same layout; we only hide the rest of the UI */
+body.focus .commitRow{ display: flex; }     /* visible in focus */
+body.focus .container > *:not(#editorWrap):not(.commitRow):not(#commitNotice):not(.editor-wrap){ display:none; }
+
 /* Hide chrome while focused (header + history + extras) */
 body.focus .appbar,
 body.focus #entries,
@@ -20,6 +72,3 @@ body.focus .editor-wrap { padding: 0 !important; }
   display: none;
 }
 body.focus #focus-reveal { display: block; }
-
-/* Make sure the commit button remains visible in focus */
-body.focus #commitBtn.commit { display: inline-flex !important; }
