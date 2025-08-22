@@ -1,9 +1,12 @@
 import { Page } from '@playwright/test';
 
 export async function login(page: Page) {
+  const email = process.env.HBUK_TEST_EMAIL || 'u2@hbuk.dev';
+  const password = process.env.HBUK_TEST_PASSWORD || '123456';
+  
   await page.goto('/login.html');
-  await page.fill('input[type="email"]', process.env.HBUK_TEST_EMAIL!);
-  await page.fill('input[type="password"]', process.env.HBUK_TEST_PASSWORD!);
+  await page.fill('input[type="email"]', email);
+  await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"], text=Login');
   await page.waitForURL('**/index.html');
 }
