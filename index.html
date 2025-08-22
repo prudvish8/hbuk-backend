@@ -1,25 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>hbuk journal</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="notifications.css">
-    <!-- focus.css MUST come after style.css so it can override -->
-    <link rel="stylesheet" href="focus.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>hbuk journal</title>
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="notifications.css">
+  <!-- focus.css MUST come after style.css so it can override -->
+  <link rel="stylesheet" href="focus.css">
+
+  <!-- Markdown rendering (receipts/verify pages, etc.) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- PDF export -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
     <header class="appbar chrome">
-        <div class="bar">
-            <div class="brand">hbuk</div>
-            <div class="spacer"></div>
-            <button id="exportAllBtn" class="btn">📥 Export All</button>
-            <label class="check"><input type="checkbox" id="autoReceiptsChk"> Auto receipts</label>
-            <button id="focusToggle" class="btn" title="Focus mode (F)">Focus</button>
-            <button id="logoutBtn" class="btn subtle">Logout</button>
-        </div>
+      <div class="bar">
+        <div class="brand">hbuk</div>
+        <div class="spacer"></div>
+        <button id="exportJsonBtn" class="btn">📄 Export JSON</button>
+        <button id="exportPdfBtn"  class="btn">📄 Export PDF</button>
+        <label class="check">
+          <input type="checkbox" id="autoReceiptsChk"> Auto receipts
+        </label>
+        <button id="focusToggle" class="btn" title="Focus mode (F)">Focus</button>
+        <button id="logoutBtn" class="btn subtle">Logout</button>
+      </div>
     </header>
 
     <main class="container">
@@ -29,18 +37,7 @@
 
             <!-- Green commit pill appears here for ~2s after commit -->
             <div id="commitNotice" class="notif" role="status" aria-live="polite"></div>
-
-            <!-- The only commit button -->
-            <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
-
-        <section id="entries"></section>
     </main>
-
-    <script>window.API_BASE='https://hbuk-backend-hvow.onrender.com';</script>
-    <script type="module" src="api-utils.js"></script>
-    <script type="module" src="script.js"></script>
-
-    <div id="focus-reveal"></div>
 </body>
 </html>
