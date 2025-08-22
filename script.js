@@ -444,9 +444,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Wire up export button in header
-    const exportAllBtn = document.getElementById('exportAllBtn');
-    exportAllBtn && (exportAllBtn.onclick = exportAllEntries);
+    // Export buttons
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    const exportPdfBtn  = document.getElementById('exportPdfBtn');
+
+    exportJsonBtn && (exportJsonBtn.onclick = exportAllEntries);  // existing JSON exporter
+    exportPdfBtn  && (exportPdfBtn.onclick  = exportAllPdf);      // existing PDF exporter
     
     // ––– Export PDF (new) –––
     document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
