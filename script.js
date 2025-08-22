@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
             return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
         }
-        return 'somewhere in the universe ✨';
+        return 'somewhere in the universe ✌️';
     }
 
     // --- JWT EXPIRY CHECKING ---
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 2. Get timestamp.
             const timestamp = new Date().toISOString();
             // 3. Get location name (pretty + flag, or friendly fallback)
-            let locationName = 'somewhere in the universe ✨';
+            let locationName = 'somewhere in the universe ✌️';
             if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
                 try {
                     const geoResponse = await fetch(
@@ -444,12 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Export buttons
+    // Wire up export button in header
     const exportJsonBtn = document.getElementById('exportJsonBtn');
-    const exportPdfBtn  = document.getElementById('exportPdfBtn');
-
-    exportJsonBtn && (exportJsonBtn.onclick = exportAllEntries);  // existing JSON exporter
-    exportPdfBtn  && (exportPdfBtn.onclick  = exportAllPdf);      // existing PDF exporter
+    exportJsonBtn && (exportJsonBtn.onclick = exportAllEntries);
     
     // ––– Export PDF (new) –––
     document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
