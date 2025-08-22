@@ -7,6 +7,8 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:smoke": "playwright test -g 'HBUK UI smoke'",
+    "test:interactive": "playwright test -g 'Interactive UI Tests'",
+    "test:all": "playwright test tests/smoke.spec.ts",
     "pw:install": "playwright install --with-deps",
     "serve": "http-server -c-1 -p 5173 .",
     "dev": "node server.js",
