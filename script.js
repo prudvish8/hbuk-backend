@@ -92,6 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize focus mode
     initFocus();
     
+    // Wire export buttons
+    wireExports();
+    
     // Cmd/Ctrl + Enter commits (uses the single commit button)
     document.addEventListener('keydown', (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -111,29 +114,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let entries = [];
 
     // ––––– Location helpers (pretty name + flag + friendly fallback) –––––
-    function stripTheCountry(name = '') {
-        return name
-            .replace(/\s*\(the\)$/i, '') // drop trailing "(the)"
-            .replace(/^United States of America$/i, 'United States')
-            .replace(/^United Kingdom of Great Britain and Northern Ireland$/i, 'United Kingdom');
+    const FALLBACK_PLACE = 'somewhere in the universe ✨';
+    
+    function cleanCountryName(name = '') {
+        // strip trailing " (the)" etc.
+        return name.replace(/\s*\((the|of the)\)\s*$/i, '');
     }
-    function flagEmoji(alpha2) {
-        if (!alpha2 || alpha2.length !== 2) return '';
-        return String.fromCodePoint(...alpha2.toUpperCase().split('').map(c => 127397 + c.charCodeAt()));
+    
+    function codeToFlag(code) {
+        // ISO alpha-2 to emoji flag
+        if (!code || code.length !== 2) return '';
+        const base = 0x1F1E6; // 'A'
+        return String.fromCodePoint(
+            base + (code.toUpperCase().charCodeAt(0) - 65),
+            base + (code.toUpperCase().charCodeAt(1) - 65)
+        );
     }
-    function prettyLocationFromReverseGeo(g = {}) {
-        const city = g.locality || g.city || '';
-        const region = g.principalSubdivision || g.region || '';
-        const country = stripTheCountry(g.countryName || '');
-        const flag = flagEmoji(g.countryCode);
-        return [city, region, [flag, country].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    
+    function prettyPlace(geo) {
+        // Accepts BigDataCloud reverse-geocode or our stored shape
+        // Expected fields: locality/city, principalSubdivision, countryName, countryCode, locationName
+        if (geo?.locationName) return geo.locationName; // already pretty
+        const city =
+            geo.locality || geo.city || geo.localityInfo?.administrative?.[0]?.name || '';
+        const region = geo.principalSubdivision || geo.region || '';
+        const country = cleanCountryName(geo.countryName || geo.country || '');
+        const flag = codeToFlag(geo.countryCode || geo.countryCodeAlpha2 || '');
+        const parts = [city, region, country].filter(Boolean);
+        if (!parts.length) return FALLBACK_PLACE;
+        return `${parts.join(', ')} ${flag}`.trim();
     }
-    function prettyLocationStamp(entry) {
-        if (entry?.locationName) return stripTheCountry(entry.locationName);
-        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
-            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
-        }
-        return 'somewhere in the universe ✨';
+    
+    function toastOk(msg, ms = 1800) {
+        const n = document.getElementById('commitNotice');
+        if (!n) return;
+        n.textContent = msg;
+        n.classList.add('show', 'success');
+        setTimeout(() => n.classList.remove('show', 'success'), ms);
     }
 
     // --- JWT EXPIRY CHECKING ---
@@ -191,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const metaP = document.createElement('div');
             metaP.className = 'badge';
             const date = new Date(entry.createdAt || entry.timestamp);
-            const locationString = prettyLocationStamp(entry);
+            const locationString = prettyPlace(entry);
             metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
             
             // Add digest display with copy and verify actions
@@ -377,16 +394,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // 2. Get timestamp.
             const timestamp = new Date().toISOString();
             // 3. Get location name (pretty + flag, or friendly fallback)
-            let locationName = 'somewhere in the universe ✨';
+            let locationName = FALLBACK_PLACE;
             if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
                 try {
-                    const geoResponse = await fetch(
+                    const resp = await fetch(
                         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`
                     );
-                    const g = await geoResponse.json();
-                    locationName = prettyLocationFromReverseGeo(g);
-                } catch (error) {
-                    console.warn("Reverse geocoding failed:", error);
+                    const data = await resp.json();
+                    // prettify + flag
+                    locationName = prettyPlace(data);
+                } catch (e) {
+                    console.warn('Reverse geocoding failed:', e);
+                    locationName = FALLBACK_PLACE;
                 }
             }
 
@@ -413,89 +432,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- EXPORT FUNCTIONALITY ---
-    async function exportAllEntries() {
-        try {
-            const response = await fetch(`${API_BASE}/api/export`, {
-                headers: {
-                    'Authorization': `Bearer ${getToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Export failed: ${response.status}`);
-            }
-            
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'hbuk-export.json';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            
-            showNotification('Export downloaded successfully!', 'success');
-        } catch (error) {
-            console.error('Export error:', error);
-            showNotification('Export failed: ' + error.message, 'error');
-        }
+    // -------- Export buttons --------
+    async function fetchAllEntries() {
+        const token = localStorage.getItem('hbuk_token');
+        const res = await fetch(`${window.API_BASE || ''}/api/entries`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        return Array.isArray(data) ? data : (data.entries || []);
     }
 
-    // Export buttons
-    const exportJsonBtn = document.getElementById('exportJsonBtn');
-    const exportPdfBtn  = document.getElementById('exportPdfBtn');
+    async function onExportJSON() {
+        const entries = await fetchAllEntries();
+        const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `hbuk-entries-${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toastOk('Exported JSON ✓');
+    }
 
-    exportJsonBtn && (exportJsonBtn.onclick = exportAllEntries);  // existing JSON exporter
-    exportPdfBtn  && (exportPdfBtn.onclick  = exportAllPdf);      // existing PDF exporter
+    async function onExportPDF() {
+        const entries = await fetchAllEntries();
+        const { jsPDF } = window.jspdf || {};
+        if (!jsPDF) { alert('PDF library failed to load'); return; }
+        const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+        const margin = 48, width = 595 - margin * 2;
+        let y = margin;
+        doc.setFont('Helvetica', 'bold'); doc.setFontSize(16);
+        doc.text('hbuk — journal export', margin, y); y += 20;
+        doc.setFont('Helvetica', 'normal'); doc.setFontSize(10);
+        doc.text(new Date().toString(), margin, y); y += 22;
+
+        entries.forEach((e, idx) => {
+            const when = new Date(e.createdAt || e.created_at || e.timestamp || Date.now());
+            const meta = `#${idx + 1} • ${when.toLocaleString()} • ${e.locationName || FALLBACK_PLACE}`;
+            const body = (e.content || '').replace(/\r\n/g, '\n');
+            const metaLines = doc.splitTextToSize(meta, width);
+            const bodyLines = doc.splitTextToSize(body, width);
+            // page break if needed
+            const blockHeight = (metaLines.length + bodyLines.length) * 14 + 18;
+            if (y + blockHeight > 842 - margin) { doc.addPage(); y = margin; }
+            doc.setFont('Helvetica', 'bold');  doc.setFontSize(11);
+            doc.text(metaLines, margin, y); y += metaLines.length * 14 + 6;
+            doc.setFont('Helvetica', 'normal'); doc.setFontSize(12);
+            doc.text(bodyLines, margin, y); y += bodyLines.length * 14 + 12;
+        });
+        doc.save(`hbuk-entries-${new Date().toISOString().slice(0,10)}.pdf`);
+        toastOk('Exported PDF ✓');
+    }
+
+    function wireExports() {
+        const btnJson = document.getElementById('exportJsonBtn');
+        const btnPdf  = document.getElementById('exportPdfBtn');
+        btnJson?.addEventListener('click', onExportJSON);
+        btnPdf?.addEventListener('click', onExportPDF);
+    }
     
-    // ––– Export PDF (new) –––
-    document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
-    async function exportAllPdf() {
-        try {
-            // ensure we have entries; fetch if empty
-            if (!Array.isArray(entries) || !entries.length) {
-                const data = await apiRequest('/api/entries');
-                entries = data?.entries || [];
-            }
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            const left = 48;
-            let y = 56;
-            
-            doc.setFont('Helvetica', 'normal');
-            doc.setFontSize(14);
-            doc.text('hbuk export', left, y);
-            y += 20;
-            
-            for (const e of entries) {
-                const date = new Date(e.createdAt || e.timestamp).toLocaleString();
-                const where = prettyLocationStamp(e);
-                const header = `• ${date} — ${where}`;
-                const body = (e.content || e.text || '').replace(/\r\n/g, '\n');
-                
-                doc.setFontSize(11); doc.setTextColor(80);
-                doc.text(header, left, y); y += 16;
-                
-                doc.setFontSize(12); doc.setTextColor(20);
-                const lines = doc.splitTextToSize(body, 515);
-                for (const line of lines) {
-                    if (y > 760) { doc.addPage(); y = 56; }
-                    doc.text(line, left, y); y += 16;
-                }
-                y += 8;
-                if (y > 760) { doc.addPage(); y = 56; }
-            }
-            
-            doc.save('hbuk-export.pdf');
-            showNotification('Exported PDF ✓', 'success');
-        } catch (err) {
-            console.error('Export PDF error:', err);
-            showNotification('Export PDF failed', 'error');
-        }
-    }
+
 
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {
