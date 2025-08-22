@@ -6,6 +6,9 @@
   "scripts": {
     "test": "playwright test",
     "test:ui": "playwright test --ui",
+    "test:smoke": "playwright test -g 'HBUK UI smoke'",
+    "pw:install": "playwright install --with-deps",
+    "serve": "http-server -c-1 -p 5173 .",
     "dev": "node server.js",
     "smoke": "node scripts/smoke.mjs",
     "health": "node scripts/healthcheck.mjs",
@@ -40,6 +43,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
+    "@types/node": "^24.3.0",
+    "http-server": "^14.1.1",
     "husky": "^9.1.7"
   }
 }

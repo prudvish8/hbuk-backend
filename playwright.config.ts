@@ -1,14 +1,16 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  use: {
-    baseURL: process.env.HBUK_BASE_URL || 'http://localhost:3000',
-    headless: true,
-    viewport: { width: 1280, height: 800 },
-    ignoreHTTPSErrors: true,
-  },
+  testDir: 'tests',
   timeout: 30_000,
-  testDir: './tests',
-  fullyParallel: false,
-  workers: 1,
+  retries: process.env.CI ? 2 : 0,
+  use: {
+    baseURL: 'http://localhost:5173',
+    headless: true,
+  },
+  webServer: {
+    command: 'npx http-server -c-1 -p 5173 .',
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+  },
 });
