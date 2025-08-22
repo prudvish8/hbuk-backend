@@ -9,13 +9,17 @@
     <!-- focus.css MUST come after style.css so it can override -->
     <link rel="stylesheet" href="focus.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- PDF export -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body>
     <header class="appbar chrome">
         <div class="bar">
             <div class="brand">hbuk</div>
             <div class="spacer"></div>
-            <button id="exportAllBtn" class="btn">📥 Export All</button>
+            <!-- JSON + PDF exports -->
+            <button id="exportJsonBtn" class="btn">🗂️ Export JSON</button>
+            <button id="exportPdfBtn"  class="btn">📄 Export PDF</button>
             <label class="check"><input type="checkbox" id="autoReceiptsChk"> Auto receipts</label>
             <button id="focusToggle" class="btn" title="Focus mode (F)">Focus</button>
             <button id="logoutBtn" class="btn subtle">Logout</button>

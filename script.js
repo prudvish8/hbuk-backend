@@ -164,9 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const metaP = document.createElement('div');
             metaP.className = 'badge';
-            const date = new Date(entry.createdAt || entry.timestamp);
-            const locationString = formatLocation(entry);
-            metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
+            metaP.textContent = renderEntryMeta(entry);
             
             // Add digest display with copy and verify actions
             if (entry.digest) {
@@ -243,14 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOCATION FORMATTING HELPER ---
-    function formatLocation(entry) {
-        if (entry?.locationName) return entry.locationName;
-        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
-            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
-        }
-        return 'Location not available';
-    }
+
 
     // --- DOWNLOAD RECEIPT FUNCTION ---
     function downloadReceipt(entry) {
@@ -357,20 +348,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const location = await getCurrentLocation();
             // 2. Get timestamp.
             const timestamp = new Date().toISOString();
-            // 3. Get location name.
-            let locationName = "Unknown Location";
+            // 3. Get location name (pretty + flag, or friendly fallback)
+            let locationName = 'somewhere in the universe ✨';
             if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
                 try {
                     const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
                     const data = await geoResponse.json();
-                    const place = data.locality || data.city;
-                    locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
+                    locationName = prettyLocationFromReverseGeo(data);
                 } catch (error) {
-                    console.error("Reverse geocoding failed:", error);
-                    locationName = "Location lookup failed";
+                    console.warn("Reverse geocoding failed:", error);
                 }
-            } else {
-                locationName = "Location not available";
             }
 
             // 4. Build the data package with only the fields we want to store.
@@ -396,42 +383,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- EXPORT FUNCTIONALITY ---
-    async function exportAllEntries() {
-        try {
-            const response = await fetch(`${API_BASE}/api/export`, {
-                headers: {
-                    'Authorization': `Bearer ${getToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Export failed: ${response.status}`);
-            }
-            
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'hbuk-export.json';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            
-            showNotification('Export downloaded successfully!', 'success');
-        } catch (error) {
-            console.error('Export error:', error);
-            showNotification('Export failed: ' + error.message, 'error');
-        }
-    }
 
-    // Wire up export button in header
-    const exportAllBtn = document.getElementById('exportAllBtn');
-    if (exportAllBtn) {
-        exportAllBtn.onclick = exportAllEntries;
-    }
+
+
+
 
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {
@@ -487,7 +442,108 @@ document.addEventListener('DOMContentLoaded', () => {
     initialize();
 });
 
+// ---------- Pretty location helpers ----------
+function stripTheCountry(name = '') {
+  return name
+    .replace(/\s*\(the\)\s*$/i, '')                                  // drop trailing "(the)"
+    .replace(/^United States of America$/i, 'United States')          // nicer common names
+    .replace(/^United Kingdom of Great Britain and Northern Ireland$/i, 'United Kingdom');
+}
+function flagEmoji(alpha2) {
+  if (!alpha2 || alpha2.length !== 2) return '';
+  return String.fromCodePoint(...alpha2.toUpperCase().split('').map(c => 127397 + c.charCodeAt()));
+}
+function prettyLocationFromReverseGeo(g = {}) {
+  const city    = g.locality || g.city || '';
+  const region  = g.principalSubdivision || g.region || '';
+  const country = stripTheCountry(g.countryName || '');
+  const flag    = flagEmoji(g.countryCode);
+  return [city, region, [flag, country].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+function prettyLocationStamp(entry = {}) {
+  if (entry.locationName) return stripTheCountry(entry.locationName);
+  if (typeof entry.latitude === 'number' && typeof entry.longitude === 'number') {
+    return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
+  }
+  return 'somewhere in the universe ✨';
+}
 
+// ---------- Reverse geocode during commit ----------
+async function resolvePrettyLocation(lat, lon) {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const g = await (await fetch(url)).json();
+    return prettyLocationFromReverseGeo(g);
+  } catch {
+    return null;
+  }
+}
+
+// Example hook inside your commit flow:
+// - set entry.locationName to a pretty name + flag when coords exist
+// (call this right before sending the commit to your API)
+async function attachPrettyLocationIfPossible(entry) {
+  if (typeof entry.latitude === 'number' && typeof entry.longitude === 'number' && !entry.locationName) {
+    const pretty = await resolvePrettyLocation(entry.latitude, entry.longitude);
+    if (pretty) entry.locationName = pretty;
+  }
+}
+
+// ---------- Render meta uses pretty stamp ----------
+function renderEntryMeta(entry) {
+  const when  = new Date(entry.createdAt || entry.timestamp || Date.now()).toLocaleString();
+  const where = prettyLocationStamp(entry);
+  return `Committed on ${when} from ${where}`;
+}
+
+// If you have existing code that sets textContent directly, call:
+// metaEl.textContent = renderEntryMeta(entry);
+
+// ---------- Export JSON (existing) & wire button ----------
+async function exportAllEntriesAsJson() {
+  const res = await fetch('/api/entries', { credentials: 'include' });
+  const data = await res.json();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hbuk-export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+document.getElementById('exportJsonBtn')?.addEventListener('click', exportAllEntriesAsJson);
+
+// ---------- Export PDF (new) ----------
+async function exportAllPdf() {
+  try {
+    // fetch entries (same endpoint you use for JSON)
+    const res = await fetch('/api/entries', { credentials: 'include' });
+    const payload = await res.json();
+    const items = payload?.entries || payload || [];
+
+    const { jsPDF } = window.jspdf;
+    const doc  = new jsPDF({ unit: 'pt', format: 'a4' });
+    const left = 48; let y = 56;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(14); doc.text('hbuk export', left, y); y += 22;
+
+    for (const e of items) {
+      const head = `• ${new Date(e.createdAt || e.timestamp).toLocaleString()} — ${prettyLocationStamp(e)}`;
+      const body = String(e.content || e.text || '').replace(/\r\n/g, '\n');
+      doc.setFontSize(11); doc.setTextColor(80);  doc.text(head, left, y); y += 16;
+      doc.setFontSize(12); doc.setTextColor(20);
+      const lines = doc.splitTextToSize(body, 515);
+      for (const line of lines) {
+        if (y > 760) { doc.addPage(); y = 56; }
+        doc.text(line, left, y); y += 16;
+      }
+      y += 8; if (y > 760) { doc.addPage(); y = 56; }
+    }
+    doc.save('hbuk-export.pdf');
+  } catch (err) {
+    console.error('Export PDF failed:', err);
+  }
+}
+document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
 
 // ---------- Copy UX (digest chip + full entry) ----------
 // Keep a map of entries you fetched/created
