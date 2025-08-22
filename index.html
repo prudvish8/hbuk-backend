@@ -31,11 +31,14 @@
         <div class="editor-wrap">
             <textarea id="editor" placeholder="Begin..."></textarea>
             <div class="word-count" id="wordCount">0 words</div>
+        </div>
 
-            <!-- Green commit pill appears here for ~2s after commit -->
-            <div id="commitNotice" class="notif" role="status" aria-live="polite"></div>
+        <!-- Green commit pill appears here for ~2s after commit -->
+        <div id="commitNotice" class="notif" role="status" aria-live="polite"></div>
 
-            <!-- The only commit button -->
+        <!-- The commit row with button -->
+        <div class="commitRow">
+            <span id="notif" class="badge" aria-live="polite"></span>
             <button id="commitBtn" class="commit">Commit ↵</button>
         </div>
 
