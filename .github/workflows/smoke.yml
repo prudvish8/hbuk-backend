@@ -16,6 +16,8 @@ permissions:
 env:
   API: https://hbuk-backend-hvow.onrender.com
   HUSKY: "0"   # disable git hooks in CI
+  # Make secret available to expressions via env. The `|| ''` coerces to a string for comparisons.
+  HBUK_METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN || '' }}
 
 jobs:
   smoke:
@@ -86,12 +88,12 @@ jobs:
           echo "✅ Commit & Verify OK"
 
       - name: Metrics (token via header; query fallback)
-        if: ${{ secrets.HBUK_METRICS_TOKEN != '' }}
+        if: ${{ env.HBUK_METRICS_TOKEN != '' }}
         run: |
           # keep this step soft so a bad token doesn't fail the whole job
           set +e
-          curl -fsS -H "X-Metrics-Token: ${{ secrets.HBUK_METRICS_TOKEN }}" "$API/metrics" >/dev/null \
-          || curl -fsS "$API/metrics?token=${{ secrets.HBUK_METRICS_TOKEN }}" >/dev/null
+          curl -fsS -H "X-Metrics-Token: $HBUK_METRICS_TOKEN" "$API/metrics" >/dev/null \
+          || curl -fsS "$API/metrics?token=$HBUK_METRICS_TOKEN" >/dev/null
           EC=$?
           if [ $EC -eq 0 ]; then
             echo "✅ Metrics OK"
@@ -102,5 +104,5 @@ jobs:
           fi
 
       - name: "Metrics (skipped: no token configured)"
-        if: ${{ secrets.HBUK_METRICS_TOKEN == '' }}
+        if: ${{ env.HBUK_METRICS_TOKEN == '' }}
         run: echo "Skipping metrics (no HBUK_METRICS_TOKEN secret)."

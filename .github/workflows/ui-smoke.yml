@@ -8,6 +8,9 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     name: HBUK UI Smoke Test
+    env:
+      # Make secret available to expressions via env. The `|| ''` coerces to a string for comparisons.
+      HBUK_METRICS_TOKEN: ${{ secrets.HBUK_METRICS_TOKEN || '' }}
     
     steps:
       - name: Checkout code
