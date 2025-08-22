@@ -439,6 +439,104 @@ document.addEventListener('DOMContentLoaded', () => {
         editor.focus();
     }
 
+    //
+    // Export buttons — JSON & PDF
+    //
+    const jsonBtn = document.getElementById('exportJsonBtn') 
+                 || document.getElementById('exportAllBtn'); // tolerate older markup
+    const pdfBtn  = document.getElementById('exportPdfBtn');
+
+    jsonBtn?.addEventListener('click', onExportJson);
+    pdfBtn?.addEventListener('click', onExportPdf);
+
+    // Utility: ensure we have entries in memory
+    async function ensureEntries() {
+        if (!Array.isArray(entries) || !entries.length) {
+            const res = await apiRequest('/api/entries');
+            entries = res?.entries || [];
+        }
+        return entries;
+    }
+
+    // Utility: start a file download
+    function download(filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    // Export JSON (current entries list)
+    async function onExportJson() {
+        try {
+            const list = await ensureEntries();
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                count: list.length,
+                entries: list,
+            };
+            download(
+                `hbuk-export-${new Date().toISOString().slice(0,10)}.json`,
+                new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+            );
+            showNotification('Exported JSON ✓', 'success');
+        } catch (e) {
+            console.error('Export JSON error:', e);
+            showNotification('Export JSON failed', 'error');
+        }
+    }
+
+    // Export PDF (uses jsPDF UMD)
+    async function onExportPdf() {
+        try {
+            const list = await ensureEntries();
+            const { jsPDF } = window.jspdf || {};
+            if (!jsPDF) {
+                showNotification('PDF engine not loaded', 'error');
+                return;
+            }
+
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            const left = 48;
+            let y = 56;
+
+            doc.setFont('Helvetica', 'normal');
+            doc.setFontSize(14);
+            doc.text('hbuk export', left, y); y += 22;
+
+            for (const e of list) {
+                const when = new Date(e.createdAt || e.timestamp).toLocaleString();
+                const where = (typeof prettyLocationStamp === 'function')
+                    ? prettyLocationStamp(e)
+                    : (e.locationName || ''); // graceful fallback
+                const header = `• ${when}${where ? ' — ' + where : ''}`;
+                const body = (e.content || e.text || '').replace(/\r\n/g, '\n');
+
+                doc.setFontSize(11); doc.setTextColor(80);
+                doc.text(header, left, y); y += 16;
+                doc.setFontSize(12); doc.setTextColor(20);
+
+                const lines = doc.splitTextToSize(body, 515);
+                for (const line of lines) {
+                    if (y > 760) { doc.addPage(); y = 56; }
+                    doc.text(line, left, y); y += 16;
+                }
+                y += 10;
+                if (y > 760) { doc.addPage(); y = 56; }
+            }
+
+            doc.save(`hbuk-export-${new Date().toISOString().slice(0,10)}.pdf`);
+            showNotification('Exported PDF ✓', 'success');
+        } catch (e) {
+            console.error('Export PDF error:', e);
+            showNotification('Export PDF failed', 'error');
+        }
+    }
+
     initialize();
 });
 
@@ -499,51 +597,7 @@ function renderEntryMeta(entry) {
 // If you have existing code that sets textContent directly, call:
 // metaEl.textContent = renderEntryMeta(entry);
 
-// ---------- Export JSON (existing) & wire button ----------
-async function exportAllEntriesAsJson() {
-  const res = await fetch('/api/entries', { credentials: 'include' });
-  const data = await res.json();
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'hbuk-export.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-document.getElementById('exportJsonBtn')?.addEventListener('click', exportAllEntriesAsJson);
 
-// ---------- Export PDF (new) ----------
-async function exportAllPdf() {
-  try {
-    // fetch entries (same endpoint you use for JSON)
-    const res = await fetch('/api/entries', { credentials: 'include' });
-    const payload = await res.json();
-    const items = payload?.entries || payload || [];
-
-    const { jsPDF } = window.jspdf;
-    const doc  = new jsPDF({ unit: 'pt', format: 'a4' });
-    const left = 48; let y = 56;
-    doc.setFont('Helvetica', 'normal');
-    doc.setFontSize(14); doc.text('hbuk export', left, y); y += 22;
-
-    for (const e of items) {
-      const head = `• ${new Date(e.createdAt || e.timestamp).toLocaleString()} — ${prettyLocationStamp(e)}`;
-      const body = String(e.content || e.text || '').replace(/\r\n/g, '\n');
-      doc.setFontSize(11); doc.setTextColor(80);  doc.text(head, left, y); y += 16;
-      doc.setFontSize(12); doc.setTextColor(20);
-      const lines = doc.splitTextToSize(body, 515);
-      for (const line of lines) {
-        if (y > 760) { doc.addPage(); y = 56; }
-        doc.text(line, left, y); y += 16;
-      }
-      y += 8; if (y > 760) { doc.addPage(); y = 56; }
-    }
-    doc.save('hbuk-export.pdf');
-  } catch (err) {
-    console.error('Export PDF failed:', err);
-  }
-}
-document.getElementById('exportPdfBtn')?.addEventListener('click', exportAllPdf);
 
 // ---------- Copy UX (digest chip + full entry) ----------
 // Keep a map of entries you fetched/created
