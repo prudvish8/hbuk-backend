@@ -200,15 +200,32 @@ let db;
 
 // --- ROUTES ---
 
-// Health endpoints
-app.get('/health', (_req, res) => {
-  res.status(200).json({ ok: true, ts: new Date().toISOString() });
+// --- fast, auth-free health checks ---
+// Basic HEAD for connectivity (no body)
+app.head('/', (req, res) => res.status(200).end());
+
+// Liveness (no cache)
+app.get('/healthz', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({
+    ok: true,
+    ts: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.HBUK_VERSION || 'deploy',
+    path: '/healthz',
+  });
 });
 
-// Health check: keep this before any auth or 404 handlers
-app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.status(200).json({ ok: true, ts: new Date().toISOString() });
+// Main health for Render + CI
+app.get('/api/health', (req, res) => {
+  res.set('Cache-Control', 'no-store'); // ← semicolon, not comma
+  res.status(200).json({
+    ok: true,
+    ts: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.HBUK_VERSION || 'deploy',
+    path: '/api/health',
+  });
 });
 
 app.get('/metrics', (req, res) => {
