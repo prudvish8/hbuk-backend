@@ -5,6 +5,7 @@ on:
   workflow_dispatch: {}
 env:
   API: https://hbuk-backend-hvow.onrender.com
+  HEALTH_PATHS: /api/health,/healthz
 
 jobs:
   health:
