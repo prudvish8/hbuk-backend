@@ -205,6 +205,12 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true, ts: new Date().toISOString() });
 });
 
+// Health check: keep this before any auth or 404 handlers
+app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ ok: true, ts: new Date().toISOString() });
+});
+
 app.get('/metrics', (req, res) => {
   const ok =
     METRICS_TOKEN &&
