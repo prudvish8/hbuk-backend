@@ -61,6 +61,20 @@ function merkleRoot(hashes){
 
 const app = express();
 
+// --- HEALTH ROUTES (very top, before any middleware) ---
+// Basic HEAD for connectivity (no body)
+app.head('/', (req, res) => res.status(200).end());
+
+// Liveness (no cache)
+app.get('/healthz', (req, res) => res.set('Cache-Control','no-store').json({
+  ok: true, ts: Date.now(), uptime: process.uptime(), version: process.env.HBUK_VERSION || 'deploy'
+}));
+
+// Main health for Render + CI
+app.get('/api/health', (req, res) => res.set('Cache-Control','no-store').json({
+  ok: true, ts: Date.now(), uptime: process.uptime(), version: process.env.HBUK_VERSION || 'deploy'
+}));
+
 // --- MIDDLEWARE ORDER ---
 app.set('trust proxy', 1);
 
@@ -150,8 +164,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+// Rate limiting - skip health + HEAD
+const healthPaths = new Set(['/api/health', '/healthz']);
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.method === 'HEAD' || healthPaths.has(req.path),
+});
 app.use(limiter);
 
 // Authentication rate limiting (stricter for login/register)
@@ -199,34 +220,6 @@ const client = new MongoClient(MONGODB_URI, {
 let db;
 
 // --- ROUTES ---
-
-// --- fast, auth-free health checks ---
-// Basic HEAD for connectivity (no body)
-app.head('/', (req, res) => res.status(200).end());
-
-// Liveness (no cache)
-app.get('/healthz', (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  res.status(200).json({
-    ok: true,
-    ts: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.HBUK_VERSION || 'deploy',
-    path: '/healthz',
-  });
-});
-
-// Main health for Render + CI
-app.get('/api/health', (req, res) => {
-  res.set('Cache-Control', 'no-store'); // ← semicolon, not comma
-  res.status(200).json({
-    ok: true,
-    ts: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.HBUK_VERSION || 'deploy',
-    path: '/api/health',
-  });
-});
 
 app.get('/metrics', (req, res) => {
   const ok =
