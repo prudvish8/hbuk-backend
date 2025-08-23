@@ -5,25 +5,26 @@ on:
   workflow_dispatch: {}
 env:
   API: https://hbuk-backend-hvow.onrender.com
+
 jobs:
   health:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Curl probe - API health
         run: |
           set -e
-          echo "GET $API/health"
-          curl -fsS "$API/health" >/dev/null
-          echo "GET $API/health/db"
-          curl -fsS "$API/health/db" >/dev/null
+          echo "GET $API/api/health"
+          curl -fsS --retry 6 --retry-delay 5 --retry-all-errors "$API/api/health" >/dev/null
+          echo "GET $API/healthz"
+          curl -fsS --retry 6 --retry-delay 5 --retry-all-errors "$API/healthz" >/dev/null
           echo "Curl probe: OK"
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      
+
       - name: Run robust healthcheck script
         run: node scripts/healthcheck.mjs
