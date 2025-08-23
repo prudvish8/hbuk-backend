@@ -504,50 +504,85 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- PDF helpers (keep output clean with jsPDF's built-in Helvetica) ---
+    function pdfSafe(text = "") {
+        // normalize quotes/dashes and bullet
+        const normalized = text
+            .replace(/[""]/g, '"')
+            .replace(/['']/g, "'")
+            .replace(/[–—]/g, "-")
+            .replace(/\u2022/g, "- "); // • -> "- "
+
+        // strip emoji/flags/unsupported unicode (keeps ASCII + whitespace)
+        return normalized.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
+    }
+
+    function pdfWrap(doc, text, maxWidth) {
+        return doc.splitTextToSize(pdfSafe(text), maxWidth);
+    }
+
     // Export PDF (uses jsPDF UMD)
     async function onExportPdf() {
         try {
-            const list = await ensureEntries();
-            const { jsPDF } = window.jspdf || {};
-            if (!jsPDF) {
-                showNotification('PDF engine not loaded', 'error');
-                return;
+            // ensure entries exist
+            if (!Array.isArray(entries) || !entries.length) {
+                const data = await apiRequest('/api/entries');
+                entries = data?.entries || [];
             }
 
+            const { jsPDF } = window.jspdf;
             const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-            const left = 48;
+
+            const margin = 48;
+            const pageW = doc.internal.pageSize.getWidth();
+            const width = pageW - margin * 2;
             let y = 56;
 
             doc.setFont('Helvetica', 'normal');
+
+            // Title
             doc.setFontSize(14);
-            doc.text('hbuk export', left, y); y += 22;
+            doc.setTextColor(20);
+            doc.text('hbuk export', margin, y);
+            y += 22;
 
-            for (const e of list) {
+            for (const e of entries) {
                 const when = new Date(e.createdAt || e.timestamp).toLocaleString();
-                const where = (typeof prettyLocationStamp === 'function')
-                    ? prettyLocationStamp(e)
-                    : (e.locationName || ''); // graceful fallback
-                const header = `• ${when}${where ? ' — ' + where : ''}`;
+                const whereRaw =
+                    e.locationName ||
+                    (typeof e.latitude === 'number' && typeof e.longitude === 'number'
+                        ? `(${e.latitude.toFixed(4)}, ${e.longitude.toFixed(4)})`
+                        : 'somewhere in the universe ✨');
+
+                // header line (ascii-safe)
+                const header = `- ${when} — ${whereRaw}`;
+
+                doc.setFontSize(11);
+                doc.setTextColor(80);
+                for (const line of pdfWrap(doc, header, width)) {
+                    if (y > 760) { doc.addPage(); y = 56; }
+                    doc.text(line, margin, y);
+                    y += 16;
+                }
+
+                // body (content)
                 const body = (e.content || e.text || '').replace(/\r\n/g, '\n');
-
-                doc.setFontSize(11); doc.setTextColor(80);
-                doc.text(header, left, y); y += 16;
-                doc.setFontSize(12); doc.setTextColor(20);
-
-                const lines = doc.splitTextToSize(body, 515);
+                doc.setFontSize(12);
+                doc.setTextColor(20);
+                const lines = pdfWrap(doc, body, width);
                 for (const line of lines) {
                     if (y > 760) { doc.addPage(); y = 56; }
-                    doc.text(line, left, y); y += 16;
+                    doc.text(line, margin, y);
+                    y += 16;
                 }
-                y += 10;
+
+                y += 10; // spacing
                 if (y > 760) { doc.addPage(); y = 56; }
             }
 
-            doc.save(`hbuk-export-${new Date().toISOString().slice(0,10)}.pdf`);
-            showNotification('Exported PDF ✓', 'success');
-        } catch (e) {
-            console.error('Export PDF error:', e);
-            showNotification('Export PDF failed', 'error');
+            doc.save('hbuk-export.pdf');
+        } catch (err) {
+            console.error('Export PDF error:', err);
         }
     }
 
