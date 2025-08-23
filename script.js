@@ -164,9 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const metaP = document.createElement('div');
             metaP.className = 'badge';
-            const date = new Date(entry.createdAt || entry.timestamp);
-            const locationString = formatLocation(entry);
-            metaP.textContent = `Committed on ${date.toLocaleString()} from ${locationString}`;
+            metaP.textContent = renderEntryMeta(entry);
             
             // Add digest display with copy and verify actions
             if (entry.digest) {
@@ -243,14 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOCATION FORMATTING HELPER ---
-    function formatLocation(entry) {
-        if (entry?.locationName) return entry.locationName;
-        if (typeof entry?.latitude === 'number' && typeof entry?.longitude === 'number') {
-            return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
-        }
-        return 'Location not available';
-    }
+
 
     // --- DOWNLOAD RECEIPT FUNCTION ---
     function downloadReceipt(entry) {
@@ -274,6 +265,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- REFACTORED: The main entry creation logic ---
+    // keep exactly what the server returns (normalized ids), so "Copy" matches server data
+    function normalizeEntryFromServer(doc) {
+        const id = doc?._id || doc?.id;
+        return {
+            // id harmonization
+            _id: doc?._id ?? id,
+            id: id,
+            // core content
+            content: doc?.content ?? '',
+            createdAt: doc?.createdAt ?? doc?.timestamp,
+            // crypto fields
+            digest: doc?.digest ?? null,
+            signature: doc?.signature ?? null,
+            sigAlg: doc?.sigAlg,
+            sigKid: doc?.sigKid,
+            // ownership / flags
+            userId: doc?.userId,
+            isDeleted: doc?.isDeleted ?? false,
+            // location (preserve if present; allow null/undefined to remain)
+            latitude: doc?.latitude,
+            longitude: doc?.longitude,
+            locationName: doc?.locationName
+        };
+    }
+
     async function createEntry(entryData) {
         try {
             // Send the new entry to the backend to be saved
@@ -286,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Backend response:', savedEntry);
 
                 // Show the commit receipt with digest
-                showCommitNotice(savedEntry.digest);  // ⬅ green pill under editor
+                showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
 
                 // Download receipt only if auto-receipts is enabled
                 const autoReceiptsOn = JSON.parse(localStorage.getItem('hbuk:autoReceipts') ?? 'false');
@@ -294,22 +310,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     downloadReceipt(savedEntry);
                 }
 
-                // Add the new entry to our local list using SERVER RESPONSE (not optimistic data)
-                const newEntry = {
-                    _id: savedEntry._id || savedEntry.id,  // Use server _id
-                    id: savedEntry._id || savedEntry.id,   // Keep both for compatibility
-                    content: savedEntry.content,           // Use server content
-                    createdAt: savedEntry.createdAt,       // Use server timestamp
-                    digest: savedEntry.digest,             // Use server digest
-                    signature: savedEntry.signature,       // Use server signature
-                    // ✅ Use server location data - this is the key fix
-                    ...(savedEntry.latitude && {
-                        latitude: savedEntry.latitude,
-                        longitude: savedEntry.longitude,
-                        locationName: savedEntry.locationName
-                    })
-                };
-                entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc
+                // ⚠️ Always keep the full server doc in memory so "Copy" returns the same shape
+                const fullDoc = normalizeEntryFromServer(savedEntry);
+                entries.unshift(fullDoc); // newest first
+                rememberEntry(fullDoc);   // make sure the map holds the full doc
 
                 // Re-render the history with the updated list
                 renderEntries(entries);
@@ -317,7 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear the editor and the local draft
                 localStorage.removeItem(localDraftKey);
                 editor.value = '';
-                updateWordCount();          // ← ensures it shows "0 words"
+                // also reset word count if you use it
+                if (typeof updateWordCount === 'function') updateWordCount();
             }
         } catch (error) {
             console.error('Error sending entry to backend:', error);
@@ -357,20 +362,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const location = await getCurrentLocation();
             // 2. Get timestamp.
             const timestamp = new Date().toISOString();
-            // 3. Get location name.
-            let locationName = "Unknown Location";
+            // 3. Get location name (pretty + flag, or friendly fallback)
+            let locationName = 'somewhere in the universe ✨';
             if (location.latitude !== 'unavailable' && location.latitude !== 'not supported') {
                 try {
                     const geoResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.latitude}&longitude=${location.longitude}&localityLanguage=en`);
                     const data = await geoResponse.json();
-                    const place = data.locality || data.city;
-                    locationName = `${place}, ${data.principalSubdivision}, ${data.countryName}`;
+                    locationName = prettyLocationFromReverseGeo(data);
                 } catch (error) {
-                    console.error("Reverse geocoding failed:", error);
-                    locationName = "Location lookup failed";
+                    console.warn("Reverse geocoding failed:", error);
                 }
-            } else {
-                locationName = "Location not available";
             }
 
             // 4. Build the data package with only the fields we want to store.
@@ -396,42 +397,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- EXPORT FUNCTIONALITY ---
-    async function exportAllEntries() {
-        try {
-            const response = await fetch(`${API_BASE}/api/export`, {
-                headers: {
-                    'Authorization': `Bearer ${getToken()}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Export failed: ${response.status}`);
-            }
-            
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'hbuk-export.json';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-            
-            showNotification('Export downloaded successfully!', 'success');
-        } catch (error) {
-            console.error('Export error:', error);
-            showNotification('Export failed: ' + error.message, 'error');
-        }
-    }
 
-    // Wire up export button in header
-    const exportAllBtn = document.getElementById('exportAllBtn');
-    if (exportAllBtn) {
-        exportAllBtn.onclick = exportAllEntries;
-    }
+
+
+
 
     // --- AUTHENTICATION UI MANAGEMENT ---
     function updateAuthUI() {
@@ -484,8 +453,163 @@ document.addEventListener('DOMContentLoaded', () => {
         editor.focus();
     }
 
+    //
+    // Export buttons — JSON & PDF
+    //
+    const jsonBtn = document.getElementById('exportJsonBtn') 
+                 || document.getElementById('exportAllBtn'); // tolerate older markup
+    const pdfBtn  = document.getElementById('exportPdfBtn');
+
+    jsonBtn?.addEventListener('click', onExportJson);
+    pdfBtn?.addEventListener('click', onExportPdf);
+
+    // Utility: ensure we have entries in memory
+    async function ensureEntries() {
+        if (!Array.isArray(entries) || !entries.length) {
+            const res = await apiRequest('/api/entries');
+            entries = res?.entries || [];
+        }
+        return entries;
+    }
+
+    // Utility: start a file download
+    function download(filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    // Export JSON (current entries list)
+    async function onExportJson() {
+        try {
+            const list = await ensureEntries();
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                count: list.length,
+                entries: list,
+            };
+            download(
+                `hbuk-export-${new Date().toISOString().slice(0,10)}.json`,
+                new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+            );
+            showNotification('Exported JSON ✓', 'success');
+        } catch (e) {
+            console.error('Export JSON error:', e);
+            showNotification('Export JSON failed', 'error');
+        }
+    }
+
+    // Export PDF (uses jsPDF UMD)
+    async function onExportPdf() {
+        try {
+            const list = await ensureEntries();
+            const { jsPDF } = window.jspdf || {};
+            if (!jsPDF) {
+                showNotification('PDF engine not loaded', 'error');
+                return;
+            }
+
+            const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+            const left = 48;
+            let y = 56;
+
+            doc.setFont('Helvetica', 'normal');
+            doc.setFontSize(14);
+            doc.text('hbuk export', left, y); y += 22;
+
+            for (const e of list) {
+                const when = new Date(e.createdAt || e.timestamp).toLocaleString();
+                const where = (typeof prettyLocationStamp === 'function')
+                    ? prettyLocationStamp(e)
+                    : (e.locationName || ''); // graceful fallback
+                const header = `• ${when}${where ? ' — ' + where : ''}`;
+                const body = (e.content || e.text || '').replace(/\r\n/g, '\n');
+
+                doc.setFontSize(11); doc.setTextColor(80);
+                doc.text(header, left, y); y += 16;
+                doc.setFontSize(12); doc.setTextColor(20);
+
+                const lines = doc.splitTextToSize(body, 515);
+                for (const line of lines) {
+                    if (y > 760) { doc.addPage(); y = 56; }
+                    doc.text(line, left, y); y += 16;
+                }
+                y += 10;
+                if (y > 760) { doc.addPage(); y = 56; }
+            }
+
+            doc.save(`hbuk-export-${new Date().toISOString().slice(0,10)}.pdf`);
+            showNotification('Exported PDF ✓', 'success');
+        } catch (e) {
+            console.error('Export PDF error:', e);
+            showNotification('Export PDF failed', 'error');
+        }
+    }
+
     initialize();
 });
+
+// ---------- Pretty location helpers ----------
+function stripTheCountry(name = '') {
+  return name
+    .replace(/\s*\(the\)\s*$/i, '')                                  // drop trailing "(the)"
+    .replace(/^United States of America$/i, 'United States')          // nicer common names
+    .replace(/^United Kingdom of Great Britain and Northern Ireland$/i, 'United Kingdom');
+}
+function flagEmoji(alpha2) {
+  if (!alpha2 || alpha2.length !== 2) return '';
+  return String.fromCodePoint(...alpha2.toUpperCase().split('').map(c => 127397 + c.charCodeAt()));
+}
+function prettyLocationFromReverseGeo(g = {}) {
+  const city    = g.locality || g.city || '';
+  const region  = g.principalSubdivision || g.region || '';
+  const country = stripTheCountry(g.countryName || '');
+  const flag    = flagEmoji(g.countryCode);
+  return [city, region, [flag, country].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+}
+function prettyLocationStamp(entry = {}) {
+  if (entry.locationName) return stripTheCountry(entry.locationName);
+  if (typeof entry.latitude === 'number' && typeof entry.longitude === 'number') {
+    return `(${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)})`;
+  }
+  return 'somewhere in the universe ✨';
+}
+
+// ---------- Reverse geocode during commit ----------
+async function resolvePrettyLocation(lat, lon) {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const g = await (await fetch(url)).json();
+    return prettyLocationFromReverseGeo(g);
+  } catch {
+    return null;
+  }
+}
+
+// Example hook inside your commit flow:
+// - set entry.locationName to a pretty name + flag when coords exist
+// (call this right before sending the commit to your API)
+async function attachPrettyLocationIfPossible(entry) {
+  if (typeof entry.latitude === 'number' && typeof entry.longitude === 'number' && !entry.locationName) {
+    const pretty = await resolvePrettyLocation(entry.latitude, entry.longitude);
+    if (pretty) entry.locationName = pretty;
+  }
+}
+
+// ---------- Render meta uses pretty stamp ----------
+function renderEntryMeta(entry) {
+  const when  = new Date(entry.createdAt || entry.timestamp || Date.now()).toLocaleString();
+  const where = prettyLocationStamp(entry);
+  return `Committed on ${when} from ${where}`;
+}
+
+// If you have existing code that sets textContent directly, call:
+// metaEl.textContent = renderEntryMeta(entry);
 
 
 
