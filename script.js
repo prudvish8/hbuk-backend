@@ -265,6 +265,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- REFACTORED: The main entry creation logic ---
+    // keep exactly what the server returns (normalized ids), so "Copy" matches server data
+    function normalizeEntryFromServer(doc) {
+        const id = doc?._id || doc?.id;
+        return {
+            // id harmonization
+            _id: doc?._id ?? id,
+            id: id,
+            // core content
+            content: doc?.content ?? '',
+            createdAt: doc?.createdAt ?? doc?.timestamp,
+            // crypto fields
+            digest: doc?.digest ?? null,
+            signature: doc?.signature ?? null,
+            sigAlg: doc?.sigAlg,
+            sigKid: doc?.sigKid,
+            // ownership / flags
+            userId: doc?.userId,
+            isDeleted: doc?.isDeleted ?? false,
+            // location (preserve if present; allow null/undefined to remain)
+            latitude: doc?.latitude,
+            longitude: doc?.longitude,
+            locationName: doc?.locationName
+        };
+    }
+
     async function createEntry(entryData) {
         try {
             // Send the new entry to the backend to be saved
@@ -277,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('Backend response:', savedEntry);
 
                 // Show the commit receipt with digest
-                showCommitNotice(savedEntry.digest);  // ⬅ green pill under editor
+                showNotification(`Committed ✓ Digest: ${savedEntry.digest.slice(0,10)}…`, 'success');
 
                 // Download receipt only if auto-receipts is enabled
                 const autoReceiptsOn = JSON.parse(localStorage.getItem('hbuk:autoReceipts') ?? 'false');
@@ -285,22 +310,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     downloadReceipt(savedEntry);
                 }
 
-                // Add the new entry to our local list using SERVER RESPONSE (not optimistic data)
-                const newEntry = {
-                    _id: savedEntry._id || savedEntry.id,  // Use server _id
-                    id: savedEntry._id || savedEntry.id,   // Keep both for compatibility
-                    content: savedEntry.content,           // Use server content
-                    createdAt: savedEntry.createdAt,       // Use server timestamp
-                    digest: savedEntry.digest,             // Use server digest
-                    signature: savedEntry.signature,       // Use server signature
-                    // ✅ Use server location data - this is the key fix
-                    ...(savedEntry.latitude && {
-                        latitude: savedEntry.latitude,
-                        longitude: savedEntry.longitude,
-                        locationName: savedEntry.locationName
-                    })
-                };
-                entries.unshift(newEntry); // Add to beginning since we sort by createdAt desc
+                // ⚠️ Always keep the full server doc in memory so "Copy" returns the same shape
+                const fullDoc = normalizeEntryFromServer(savedEntry);
+                entries.unshift(fullDoc); // newest first
+                rememberEntry(fullDoc);   // make sure the map holds the full doc
 
                 // Re-render the history with the updated list
                 renderEntries(entries);
@@ -308,7 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Clear the editor and the local draft
                 localStorage.removeItem(localDraftKey);
                 editor.value = '';
-                updateWordCount();          // ← ensures it shows "0 words"
+                // also reset word count if you use it
+                if (typeof updateWordCount === 'function') updateWordCount();
             }
         } catch (error) {
             console.error('Error sending entry to backend:', error);
