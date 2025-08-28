@@ -1,16 +1,22 @@
 // auth.js (ESM)
 import jwt from 'jsonwebtoken';
 
+// Use the same JWT secret everywhere
+const JWT = process.env.JWT_SECRET || process.env.HBUK_JWT_SECRET;
+
 /**
  * Issue a JWT for a user. Not required by server.js if it signs inline,
  * but exported for convenience.
  */
 export function issueToken({ id, email }, opts = {}) {
-  const secret = process.env.JWT_SECRET || process.env.HBUK_JWT_SECRET;
-  if (!secret) throw new Error('JWT secret not configured');
+  if (!JWT) throw new Error('JWT secret not configured');
   // 1h default unless overridden
   const expiresIn = opts.expiresIn || '1h';
-  return jwt.sign({ sub: String(id), email }, secret, { expiresIn });
+  return jwt.sign(
+    { sub: String(id), email },
+    JWT,
+    { expiresIn, issuer: 'hbuk', audience: 'hbuk' }
+  );
 }
 
 /**
@@ -33,12 +39,15 @@ export function authenticateToken(req, res, next) {
   if (!token) {
     return res.status(401).json({ error: 'Missing Authorization token' });
   }
-  const secret = process.env.JWT_SECRET || process.env.HBUK_JWT_SECRET;
-  if (!secret) {
+  if (!JWT) {
     return res.status(500).json({ error: 'JWT secret not configured' });
   }
   try {
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, JWT, {
+      algorithms: ['HS256'],
+      issuer: 'hbuk',
+      audience: 'hbuk'
+    });
     req.user = decoded; // contains { sub, email, iat, exp }
     next();
   } catch (err) {
@@ -52,10 +61,13 @@ export function authenticateToken(req, res, next) {
 export function optionalAuth(req, _res, next) {
   const token = getTokenFromHeader(req);
   if (!token) return next();
-  const secret = process.env.JWT_SECRET || process.env.HBUK_JWT_SECRET;
-  if (!secret) return next();
+  if (!JWT) return next();
   try {
-    req.user = jwt.verify(token, secret);
+    req.user = jwt.verify(token, JWT, {
+      algorithms: ['HS256'],
+      issuer: 'hbuk',
+      audience: 'hbuk'
+    });
   } catch (_e) {
     // ignore invalid token for optional auth
   }

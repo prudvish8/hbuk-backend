@@ -7,6 +7,10 @@ import express from 'express';
 if (!process.env.JWT_SECRET && !process.env.HBUK_JWT_SECRET) {
   console.warn('[WARN] JWT secret not configured (JWT_SECRET or HBUK_JWT_SECRET). Auth will fail.');
 }
+
+// Use the same JWT secret everywhere
+const JWT = process.env.JWT_SECRET || process.env.HBUK_JWT_SECRET;
+
 import cors from 'cors';
 import { MongoClient, ObjectId } from 'mongodb';
 import bcrypt from 'bcryptjs';
@@ -57,6 +61,10 @@ function merkleRoot(hashes){
     layer = next;
   }
   return layer[0];
+}
+
+function asObjectIdHex(v) {
+  return (typeof v === 'string' && /^[a-f\d]{24}$/i.test(v)) ? v : null;
 }
 
 const app = express();
@@ -336,8 +344,8 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { sub: String(user._id), email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      JWT,
+      { expiresIn: '1h', issuer: 'hbuk', audience: 'hbuk' }
     );
 
     return res.status(200).json({
@@ -353,26 +361,46 @@ app.post('/api/login', validate(loginSchema), async (req, res) => {
 
 app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), async (req, res) => {
   try {
-    const sub = req.user?.sub;
-    if (!sub) return res.status(401).json({ error: 'Unauthorized' });
+    // --- Resolve user ObjectId robustly ---
+    const claim = req.user || {};
+    // Prefer any 24-hex id present in common claim names
+    let oid =
+      asObjectIdHex(claim.userId) ||
+      asObjectIdHex(claim.id)     ||
+      asObjectIdHex(claim.sub);
 
-    // Extract all validated fields including location
+    // If no 24-hex id, try email (either email claim or sub-as-email)
+    if (!oid) {
+      const email =
+        claim.email ||
+        (typeof claim.sub === 'string' && claim.sub.includes('@') ? claim.sub : null);
+
+      if (email) {
+        const u = await db.collection('users').findOne({ email }, { projection: { _id: 1 } });
+        if (u?._id) oid = String(u._id);
+      }
+    }
+
+    if (!oid) {
+      console.error('[commit] no valid user id in claims', claim);
+      return res.status(401).json({ error: 'Invalid auth claims' });
+    }
+
+    // --- Validate body (content must be STRING) ---
     const { content, latitude, longitude, locationName } = req.body;
-    
-    // Debug logging to track what we're receiving
     console.log('[commit] keys=', Object.keys(req.body || {}));
     console.log('[commit] location fields:', { latitude, longitude, locationName });
-    
+
     if (!content || typeof content !== 'string' || !content.trim()) {
       return res.status(400).json({ error: 'Content required' });
     }
 
+    // --- Build and save entry ---
     const createdAt = new Date();
     const doc = {
-      userId: new ObjectId(sub),
+      userId: new ObjectId(oid),
       content,
       createdAt,
-      // Include location fields if they exist
       ...(latitude !== undefined && longitude !== undefined ? {
         latitude,
         longitude,
@@ -380,18 +408,20 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
       } : {})
     };
 
-    // Debug logging to track what we're saving
-    console.log('[commit] saving doc:', { 
-      userId: doc.userId, 
+    console.log('[commit] saving doc:', {
+      userId: doc.userId,
       content: doc.content?.substring(0, 50) + '...',
       hasLocation: !!(doc.latitude && doc.longitude),
       locationFields: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude, locationName: doc.locationName } : null
     });
 
-    // immutable digest (client-visible)
-    const digest = commitDigest({ userId: sub, content, createdAt, location: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude } : null });
+    const digest = commitDigest({
+      userId: oid,
+      content,
+      createdAt,
+      location: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude } : null
+    });
 
-    // optional server-side witness signature (can rotate HBUK_SIGNING_SECRET later)
     const sig = crypto.createHmac('sha256', process.env.HBUK_SIGNING_SECRET || 'hbuk-dev')
       .update(digest)
       .digest('hex');
@@ -404,16 +434,14 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     const result = await db.collection('entries').insertOne(doc);
     METRICS.commits_total++;
 
-    // Return the complete saved document including location fields
     const savedEntry = { _id: String(result.insertedId), ...doc };
-    
-    // Debug logging to track what we're returning
-    console.log('[commit] returning saved entry:', { 
+
+    console.log('[commit] returning saved entry:', {
       id: savedEntry._id,
       hasLocation: !!(savedEntry.latitude && savedEntry.longitude),
       locationFields: savedEntry.latitude ? { latitude: savedEntry.latitude, longitude: savedEntry.longitude, locationName: savedEntry.locationName } : null
     });
-    
+
     res.status(201).json(savedEntry);
   } catch (e) {
     console.error('commit error:', e);
@@ -682,7 +710,7 @@ async function boot() {
     // TEMP: verify runtime JWT secret
     console.log('[AUTH] RUNTIME JWT_SECRET sha256:',
       crypto.createHash('sha256')
-            .update(process.env.JWT_SECRET || '')
+            .update(JWT || '')
             .digest('hex')
             .slice(0,16)
     );
