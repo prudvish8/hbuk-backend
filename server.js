@@ -99,6 +99,13 @@ app.get('/api/health', (req, res) => res.set('Cache-Control','no-store').json({
 // --- MIDDLEWARE ORDER ---
 app.set('trust proxy', 1);
 
+// Quick no-op path for health endpoints to reduce middleware noise
+const QUICK_HEALTH = new Set(['/', '/api/health', '/healthz', '/health/db']);
+app.use((req, res, next) => {
+  if (QUICK_HEALTH.has(req.path)) return next();
+  next();
+});
+
 // Maintenance switch - flip HBUK_MAINTENANCE=1 in Render to return 503
 app.use((req, res, next) => {
   if (process.env.HBUK_MAINTENANCE === '1') {
@@ -421,12 +428,14 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
       } : {})
     };
 
-    console.log('[commit] saving doc:', {
-      userId: doc.userId,
-      content: doc.content?.substring(0, 50) + '...',
-      hasLocation: !!(doc.latitude && doc.longitude),
-      locationFields: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude, locationName: doc.locationName } : null
-    });
+    if (process.env.HBUK_DEBUG === '1') {
+      console.log('[commit] saving doc:', {
+        userId: doc.userId,
+        content: doc.content?.substring(0, 50) + '...',
+        hasLocation: !!(doc.latitude && doc.longitude),
+        locationFields: doc.latitude ? { latitude: doc.latitude, longitude: doc.longitude, locationName: doc.locationName } : null
+      });
+    }
 
     const digest = commitDigest({
       userId: oid,
@@ -448,6 +457,7 @@ app.post('/api/commit', authenticateToken, writeLimiter, validate(entrySchema), 
     METRICS.commits_total++;
 
     const savedEntry = { _id: String(result.insertedId), ...doc };
+    savedEntry.userId = String(doc.userId);
 
     console.log('[commit] returning saved entry:', {
       id: savedEntry._id,
@@ -615,18 +625,14 @@ function merkleProof(hashes, target) {
 
 app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
   try {
-    const id = req.params.id;
-    const sub = req.user?.sub;
-    if (!id || !sub) return res.status(400).json({ error: 'Bad request' });
+    const hexId = asObjectIdHex(req.params.id);
+    if (!hexId) return res.status(400).json({ error: 'invalid id format' });
 
-    // Validate ID format
-    const isHex = (s, n) => typeof s === 'string' && new RegExp(`^[a-f0-9]{${n}}$`).test(s);
-    if (!isHex(id, 24)) {
-      return res.status(400).json({ error: 'invalid id format' });
-    }
+    const oidHex = await resolveUserIdHex(req.user, db);
+    if (!oidHex) return res.status(401).json({ error: 'Invalid auth claims' });
 
     const entry = await db.collection('entries').findOne(
-      { _id: new ObjectId(id), userId: new ObjectId(sub), digest: { $exists: true } },
+      { _id: new ObjectId(hexId), userId: new ObjectId(oidHex), digest: { $exists: true } },
       { projection: { digest: 1, createdAt: 1 } }
     );
     if (!entry) return res.status(404).json({ error: 'Not found' });
@@ -671,7 +677,11 @@ app.get('/api/entries', authenticateToken, async (req, res) => {
     }
     const userId = new ObjectId(oidHex);
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
-    const cursorId = req.query.cursor ? new ObjectId(req.query.cursor) : null;
+    const cursorHex = req.query.cursor ? asObjectIdHex(req.query.cursor) : null;
+    if (req.query.cursor && !cursorHex) {
+      return res.status(400).json({ error: 'invalid cursor' });
+    }
+    const cursorId = cursorHex ? new ObjectId(cursorHex) : null;
 
     const match = { userId };
     if (cursorId) match._id = { $lt: cursorId };
