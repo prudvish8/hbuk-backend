@@ -67,6 +67,19 @@ function asObjectIdHex(v) {
   return (typeof v === 'string' && /^[a-f\d]{24}$/i.test(v)) ? v : null;
 }
 
+// Resolve a user's ObjectId (24-hex) from diverse JWT claim shapes
+async function resolveUserIdHex(claim, db) {
+  let oid = asObjectIdHex(claim?.userId) || asObjectIdHex(claim?.id) || asObjectIdHex(claim?.sub);
+  if (!oid) {
+    const email = claim?.email || (typeof claim?.sub === 'string' && claim.sub.includes('@') ? claim.sub : null);
+    if (email) {
+      const u = await db.collection('users').findOne({ email }, { projection: { _id: 1 } });
+      if (u?._id) oid = String(u._id);
+    }
+  }
+  return oid; // may be null
+}
+
 const app = express();
 
 // --- HEALTH ROUTES (very top, before any middleware) ---
@@ -478,15 +491,20 @@ app.get('/api/verify/:id/:digest', publicLimiter, async (req, res) => {
 app.delete('/api/entries/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const sub = req.user?.sub;
-    if (!id || !sub) return res.status(400).json({ error: 'Bad request' });
+    if (!id) return res.status(400).json({ error: 'Bad request' });
 
-    const original = await db.collection('entries').findOne({ _id: new ObjectId(id), userId: new ObjectId(sub) });
+    const oidHex = await resolveUserIdHex(req.user, db);
+    if (!oidHex) {
+      console.error('[delete] no valid user id in claims', req.user);
+      return res.status(401).json({ error: 'Invalid auth claims' });
+    }
+
+    const original = await db.collection('entries').findOne({ _id: new ObjectId(id), userId: new ObjectId(oidHex) });
     if (!original) return res.status(404).json({ error: 'Not found' });
 
     const tombstone = {
       type: 'tombstone',
-      userId: new ObjectId(sub),
+      userId: new ObjectId(oidHex),
       originalId: original._id,
       originalDigest: original.digest,
       createdAt: new Date(),        // when deletion was requested
@@ -506,7 +524,12 @@ app.delete('/api/entries/:id', authenticateToken, async (req, res) => {
 // --- EXPORT: user's complete data export ---
 app.get('/api/export', authenticateToken, async (req, res) => {
   try {
-    const userId = new ObjectId(req.user.sub);
+    const oidHex = await resolveUserIdHex(req.user, db);
+    if (!oidHex) {
+      console.error('[export] no valid user id in claims', req.user);
+      return res.status(401).json({ error: 'Invalid auth claims' });
+    }
+    const userId = new ObjectId(oidHex);
     const entries = await db.collection('entries')
       .find({ userId })
       .project({ 
@@ -528,7 +551,7 @@ app.get('/api/export', authenticateToken, async (req, res) => {
       .toArray();
     res.setHeader('Content-Type','application/json');
     res.setHeader('Content-Disposition','attachment; filename="hbuk-export.json"');
-    res.status(200).send(JSON.stringify({ user: req.user.sub, exportedAt: new Date().toISOString(), entries }, null, 2));
+    res.status(200).send(JSON.stringify({ user: oidHex, exportedAt: new Date().toISOString(), entries }, null, 2));
   } catch (e) {
     console.error('export error:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -641,7 +664,12 @@ app.get('/api/anchors/proof/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/entries', authenticateToken, async (req, res) => {
     try {
-    const userId = new ObjectId(req.user.sub);
+    const oidHex = await resolveUserIdHex(req.user, db);
+    if (!oidHex) {
+      console.error('[entries:list] no valid user id in claims', req.user);
+      return res.status(401).json({ error: 'Invalid auth claims' });
+    }
+    const userId = new ObjectId(oidHex);
     const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
     const cursorId = req.query.cursor ? new ObjectId(req.query.cursor) : null;
 
