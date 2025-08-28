@@ -679,6 +679,14 @@ async function boot() {
       }
     }
 
+    // TEMP: verify runtime JWT secret
+    console.log('[AUTH] RUNTIME JWT_SECRET sha256:',
+      crypto.createHash('sha256')
+            .update(process.env.JWT_SECRET || '')
+            .digest('hex')
+            .slice(0,16)
+    );
+
     const server = app.listen(PORT, () => {
       console.log(`✅ API listening on :${PORT} (${NODE_ENV || 'dev'})`);
     });
